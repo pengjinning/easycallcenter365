@@ -83,6 +83,9 @@ public class CallApi extends MsgHandlerBase {
             case "transferCall":
                 transferCall(callArgs);
                 break;
+            case "transferCallWait":
+                transferCallWait(callArgs);
+                break;
             case "consultation":
                 consultation(callArgs);
                 break;
@@ -100,11 +103,21 @@ public class CallApi extends MsgHandlerBase {
 		}
 	}
 
+	private void sendCustomerCallToCallWaitHandle(){
+        CallWait callWait =  ((CallWait) this.msgHandlerEngine.getMessageHandleByName("callWait"));
+        callWait.startCallWait();
+        ThreadUtil.sleep(200);
+    }
+
     /**
      * The internal consultation function of the call center is a common one:
      * novices consult experienced employees.
      */
     private void consultation(CallArgs callArgs) {
+
+        // Use the callWait processor to keep the current customer call  on hold with background music.
+        sendCustomerCallToCallWaitHandle();
+
         String from = this.getSessionInfo().getOpNum();
         String to = callArgs.getArgs().getString("to");
         if(from.equalsIgnoreCase(to)){
@@ -156,14 +169,20 @@ public class CallApi extends MsgHandlerBase {
                 jsonObject.put("status", AgentStatus.busy.getIndex());
                 // 座席置忙
                 engine.sendReplyToAgent(new MessageResponse(
-                        RespStatus.STATUS_CHANGED, "当前用户状态: 忙碌", jsonObject)
-                );
-                //发送弹屏消息
-                engine.sendReplyToAgent(new MessageResponse(
-                        RespStatus.INNER_CONSULTATION_REQUEST, "内部业务咨询请求，来自:" + from)
+                        RespStatus.STATUS_CHANGED, "Agent is currently in a busy state.", jsonObject)
                 );
 
-                logger.info("{} 设定座席的忙碌锁定状态. userId={}, extNum={}",
+                JSONObject jsonBody = new JSONObject();
+                jsonBody.put("caller", from);
+                jsonBody.put("callee", to);
+
+                // Send screen pop-up message.
+                engine.sendReplyToAgent(new MessageResponse(
+                        RespStatus.INNER_CONSULTATION_REQUEST, "Internal consultation request from :" + from,
+                        jsonBody)
+                );
+
+                logger.info("{} Set the agent to a locked busy state. userId={}, extNum={}",
                         getTraceId(),
                         to,
                         engine.getSessionInfo().getExtNum()
@@ -184,13 +203,50 @@ public class CallApi extends MsgHandlerBase {
                 customerChannel.setAnsweredHook(new IOnAnsweredHook() {
                     @Override
                     public void onAnswered(Map<String, String> eventHeaders, String traceId) {
+                        String tips = "The call consultation has started.";
+                        // send msg to 'consultation requester'
+                        sendReplyToAgent(new MessageResponse(
+                                RespStatus.INNER_CONSULTATION_START,
+                                tips,
+                                jsonBody
+                        ));
+                        // send msg to 'consultation recipient'
+                        engine.sendReplyToAgent(new MessageResponse(
+                                RespStatus.INNER_CONSULTATION_START,
+                                tips,
+                                jsonBody
+                        ));
                         AppContextProvider.getBean(SysService.class).resetAgentBusyLockTime(to);
                         logger.info("{} The person being consulted has been answered.", callApi.getTraceId());
                     }
                 });
 
+                agentChannel.setHangupHook(new IOnHangupHook() {
+                    @Override
+                    public void onHangup(Map<String, String> eventHeaders, String traceId) {
+                        String tips = "The call consultation has stopped.";
+                        // send msg to 'consultation requester'
+                        sendReplyToAgent(new MessageResponse(
+                                RespStatus.INNER_CONSULTATION_STOP,
+                                tips,
+                                jsonBody
+                        ));
+                        // send msg to 'consultation recipient'
+                        engine.sendReplyToAgent(new MessageResponse(
+                                RespStatus.INNER_CONSULTATION_STOP,
+                                tips,
+                                jsonBody
+                        ));
+                        logger.info("{} {}", callApi.getTraceId(), tips);
+                    }
+                });
+
                 customerChannel.setAnsweredTime(0L);
                 callApi.connectExtension(customerChannel, agentChannel);
+                if(customerChannel.getAnsweredTime() <= 0){
+                    logger.warn("{} The person being consulted has no answer, terminate call session. ", getTraceId());
+                    this.listener.endCall("Consultation-call-failed.");
+                }
             }
         }else {
             sendReplyToAgent(new MessageResponse(
@@ -340,6 +396,118 @@ public class CallApi extends MsgHandlerBase {
                 logger.error("{} extension no answer, try again.", getTraceId());
                 ThreadUtil.sleep(1000);
             }
+        }
+    }
+
+    /**
+     * 在咨询成功的情况下使用该按钮，把电话转接给专家坐席。
+     * @param callArgs
+     */
+    private void transferCallWait(CallArgs callArgs) {
+        if(this.listener == null){
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "no call session found."
+            ));
+            return;
+        }
+
+        CallWait callWait = ((CallWait) this.msgHandlerEngine.getMessageHandleByName("callWait"));
+        SwitchChannel customerChannel = callWait.getCustomerChannel();
+        if(customerChannel == null || customerChannel.getHangupTime() > 0L || customerChannel.getAnsweredTime() == 0L ){
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "customer is hangup already."
+            ));
+            return;
+        }
+
+        SwitchChannel agentChannel = listener.getAgentChannel();
+        SwitchChannel professionalChannel = listener.getCustomerChannel();
+        if(professionalChannel.getHangupTime() > 0L || professionalChannel.getAnsweredTime() == 0L ){
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "professional agent is hangup or not ready."
+            ));
+            return;
+        }
+        String from = getSessionInfo().getOpNum();
+        String to = professionalChannel.getPhoneNumber();
+
+        MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByExtNum(to);
+        if (null != engine) {
+
+            CallApi callApi = ((CallApi) engine.getMessageHandleByName("call"));
+            if (null != callApi) {
+
+                // HOLD professional agent's call session
+                EslConnectionUtil.sendExecuteCommand(
+                        "set",
+                        "park_after_bridge=true",
+                        professionalChannel.getUuid()
+                );
+                professionalChannel.setFlag(ChannelFlag.HOLD_CALL);
+                agentChannel.setFlag(ChannelFlag.HOLD_CALL);
+                logger.info("{} set professional agent {} HOLD_CALL flag and park_after_bridge=true",
+                        getTraceId(), professionalChannel.getUuid());
+                ThreadUtil.sleep(100);
+
+                logger.info("{} try to hangup extension {} of user {}.", getTraceId(), getExtNum(), getSessionInfo().getOpNum());
+                //挂断转出电话的坐席分机
+                this.listener.endCall("call_transferred.");
+                ThreadUtil.sleep(100);
+
+                JSONObject jsonBody = new JSONObject();
+                jsonBody.put("caller", from);
+                jsonBody.put("callee", to);
+                jsonBody.put("customerInfo", customerChannel);
+
+                //发送弹屏消息
+                engine.sendReplyToAgent(new MessageResponse(
+                        RespStatus.TRANSFER_CALL_RECV, "转接的来电请求", jsonBody)
+                );
+
+                EslMessage message = EslConnectionUtil.sendSyncApiCommand("uuid_bridge",
+                        professionalChannel.getUuid() + " " +
+                               customerChannel.getUuid()
+                 );
+
+                boolean success = JSON.toJSONString(message).contains("+OK");
+                if(success) {
+                    if(callApi.listener != null){
+                        callApi.listener.setCustomerChannel(customerChannel);
+                    }
+                    EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(professionalChannel.getUuid() + "-ex",  callApi.listener);
+                    EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(customerChannel.getUuid() + "-ex",  callApi.listener);
+
+                    MessageResponse response = new MessageResponse(
+                            RespStatus.TRANSFER_CALL_SUCCESS,
+                            "call transferred successfully.",
+                            jsonBody
+                    );
+                    callWait.onCallWaitStopped();
+                    this.msgHandlerEngine.sendReplyToAgent(response);
+                    engine.sendReplyToAgent(response);
+
+                    professionalChannel.clearFlag(ChannelFlag.HOLD_CALL);
+                    agentChannel.clearFlag(ChannelFlag.HOLD_CALL);
+                }else{
+                    this.msgHandlerEngine.sendReplyToAgent(new MessageResponse(
+                            RespStatus.SERVER_ERROR,
+                            "Transfer call failed, " +  JSON.toJSONString(message),
+                            jsonBody
+                    ));
+                }
+            } else {
+                sendReplyToAgent(new MessageResponse(
+                        RespStatus.SERVER_ERROR, "server internal error!")
+                );
+            }
+        }else{
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "Destination professional agent user is offline."
+            ));
         }
     }
 
@@ -765,18 +933,7 @@ public class CallApi extends MsgHandlerBase {
 
                 String originationStr = genCallPhoneString(gatewayConfig, projectId, caseNo, uuidInner,
                         uuidOuter, phone, callType, videoLevel);
-
-
-                IOnHangupHook hangupHook = new IOnHangupHook() {
-                    @Override
-                    public void onHangup(Map<String, String> headers, String traceId) {
-                        SipGatewayLoadBalance.releaseGateway(gatewayConfig);
-                        logger.info("{} releaseGateway gatewayUuid={}, gatewayAddr={}",
-                                traceId, gatewayConfig.getUuid(), gatewayConfig.getGatewayAddr()
-                        );
-                    }
-                };
-                customerChannel.setHangupHook(hangupHook);
+                customerChannel.setGatewayConfig(gatewayConfig);
 
                 connectionPool.getDefaultEslConn().addListener(uuidOuter, listener);
                 logger.info("{} originationStr: originate {}", getTraceId(), originationStr);

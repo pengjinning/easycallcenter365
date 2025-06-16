@@ -33,6 +33,22 @@ public class InboundGroupHandler {
         return inboundCallQueue.size();
     }
 
+	/**
+	 * Calculate and retrieve the number of people ahead of the current customer in the queue
+	 * @param current
+	 * @return
+	 */
+	public int getQueuePosition(CallHandler current) {
+		long currentNumber = current.getQueueNo();
+		int count = 0;
+		for (CallHandler ch : inboundCallQueue) {
+			if (ch.getQueueNo() < currentNumber) {
+				count++;
+			}
+		}
+		return count;
+	}
+
     /** 业务组信息，这里使用学校的固话作为groupId  **/
 	private String groupId = null;
 

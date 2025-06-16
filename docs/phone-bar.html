@@ -198,6 +198,18 @@ window.onload = function(){
         $("#sendVideoFileBtn").removeAttr("disabled");
     });
 
+    _phoneBar.on(ccPhoneBarSocket.eventList.inner_consultation_start, function(msg){
+        $("#callStatus").text("咨询开始.");
+    });
+
+    _phoneBar.on(ccPhoneBarSocket.eventList.inner_consultation_stop, function(msg){
+        $("#callStatus").text("咨询结束.");
+    });
+
+    _phoneBar.on(ccPhoneBarSocket.eventList.transfer_call_success, function(msg){
+        $("#callStatus").text("电话转接成功.");
+    });
+
     // 订阅的坐席状态列表发生改变
     _phoneBar.on(ccPhoneBarSocket.eventList.agent_status_data_changed, function (msg) {
         console.log("agent_status_data_changed.");
@@ -339,8 +351,8 @@ function onTransferToConferenceSuccess(msg) {
             <li><a href="#" id="setFree" class="xz_btn off"></a><span>置闲</span></li>
             <li><a href="#" id="setBusy" class="sm_btn off"></a><span>忙碌</span></li>
             <li><a href="#" id="callBtn" class="wh_btn"></a><span>外呼</span></li>
-            <li id="holdBtnLi"><a href="#" id="holdBtn" class="bc_btn off"></a><span>保持</span></li>
-            <li id="unHoldBtnLi"><a href="#" id="unHoldBtn" class="bc2_btn off"></a><span>接回</span></li>
+            <li id="holdBtnLi"><a href="#" id="holdBtn" class="bc_btn off"></a><span>保 持</span></li>
+            <li id="unHoldBtnLi"><a href="#" id="unHoldBtn" class="bc2_btn off"></a><span>取消保持</span></li>
             <li><a href="#" id="transferBtn" class="zjie_btn"></a><span>转接</span></li>
             <li><a href="#" id="consultationBtn" class="zixun_btn"></a><span>咨询</span></li>
             <li><a href="#" id="conferenceBtn" class="hy_btn"></a><span>会议</span></li>
@@ -406,6 +418,15 @@ function onTransferToConferenceSuccess(msg) {
                         <input type="button" name="doTransferBtn" id="doTransferBtn"
                                onclick="_phoneBar.transferBtnClickUI()"
                                style="width: 70px;" value="转接电话" title="把当前电话转接给他/她处理。" /> &nbsp;
+
+                        <input type="button" name="stopCallWait" id="stopCallWait"
+                               onclick="_phoneBar.stopCallWaitBtnClickUI()"
+                               style="width: 70px;" value="接回客户" title="在咨询失败的情况下使用该按钮，接回处于等待中的电话。" /> &nbsp;
+
+                        <input type="button" name="transferCallWait" id="transferCallWait"
+                               onclick="_phoneBar.transferCallWaitBtnClickUI()"
+                               style="width: 70px;" value="转接客户" title="在咨询成功的情况下使用该按钮，把电话转接给专家坐席。" /> &nbsp;
+
                         <input type="button" name="doConsultationBtn" id="doConsultationBtn"
                                onclick="_phoneBar.consultationBtnClickUI()"
                                style="width: 70px;" value="拨号咨询" title="" />

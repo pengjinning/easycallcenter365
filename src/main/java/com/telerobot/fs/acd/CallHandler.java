@@ -30,12 +30,19 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
  * 单个呼入电话的处理线程
  **/
 public class CallHandler {
+
+	private static AtomicLong globalQueueCounter  = new AtomicLong();
+	private volatile long queueNo = 0L;
+	public long getQueueNo(){
+		return queueNo;
+	}
 
 	private final static Logger log = LoggerFactory.getLogger(CallHandler.class);
 	private static ConcurrentHashMap<String, CallHandler> callTaskList = new ConcurrentHashMap<>(500);
@@ -137,6 +144,7 @@ public class CallHandler {
 	}
 
 	public CallHandler(InboundDetail inboundDetail) {
+		queueNo = globalQueueCounter.incrementAndGet();
 		log.info("{} init callHandler object ...", inboundDetail.getUuid());
 		this.inboundDetail = inboundDetail;
 		this.uuid = inboundDetail.getUuid();
@@ -290,8 +298,8 @@ public class CallHandler {
 	private static String getQueueNumTips(CallHandler task){
 		InboundGroupHandler groupHandler = InboundGroupHandlerList.getInstance()
 				.getCallHandlerBySkillGroupId(task.inboundDetail.getGroupId() );
-		int queueNum = groupHandler.getQueueSize();
-		if(queueNum == 1 || queueNum == 0) {
+		int queueNum = groupHandler.getQueuePosition(task);
+		if(queueNum == 0) {
 			return "";
 		}
 		queueNum = queueNum - 1;

@@ -4,6 +4,7 @@ import com.telerobot.fs.config.CallConfig;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
 import com.telerobot.fs.entity.dto.CallMonitorInfo;
+import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.wshandle.impl.*;
 
 import java.util.ArrayList;
@@ -79,6 +80,9 @@ public class SwitchChannel {
      * 通话的各种(业务)标志数据
      */
     private ArrayList<ChannelFlag> flags = new ArrayList<>(10);
+
+
+    private volatile GatewayConfig gatewayConfig = null;
 
     /**
      * 挂机的sip状态码
@@ -239,6 +243,14 @@ public class SwitchChannel {
 
     public String getRecordingFilePath() {
         return recordingFilePath;
+    }
+
+    public GatewayConfig getGatewayConfig() {
+        return gatewayConfig;
+    }
+
+    public void setGatewayConfig(GatewayConfig gatewayConfig) {
+        this.gatewayConfig = gatewayConfig;
     }
 
     /**

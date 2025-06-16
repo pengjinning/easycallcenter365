@@ -66,6 +66,13 @@ public class CallListener implements IEslEventListener {
 		return agentChannel;
 	}
 
+	public void setCustomerChannel(SwitchChannel channel) {
+		customerChannel = channel;
+	}
+
+	public void setAgentChannel(SwitchChannel channel) {
+		agentChannel = channel;
+	}
 
 	private String getTraceId() {
 		if (StringUtils.isNullOrEmpty(traceId)) {
@@ -119,7 +126,8 @@ public class CallListener implements IEslEventListener {
 					customerChannel.getAnsweredHook().onAnswered(headers, getTraceId());
 					customerChannel.setAnsweredHook(null);
 				}
-			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
+			}else
+				if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setAnsweredTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.ANSWERED);
 
@@ -133,7 +141,7 @@ public class CallListener implements IEslEventListener {
 						// audio call convert to video call scenario.
 						jsonObject.put("callType", agentChannel.getCallType());
 					}
-					logger.info("{} customerChannel is connected，call confirmed.", getTraceId());
+					logger.info("{} agentChannel is connected，call confirmed.", getTraceId());
 					callApiObject.sendReplyToAgent(
 							new MessageResponse(RespStatus.CALLER_ANSWERED, "call connected.", jsonObject)
 					);
@@ -175,33 +183,43 @@ public class CallListener implements IEslEventListener {
 				customerChannel.setHangupTime(System.currentTimeMillis());
 				customerChannel.setChannelState(ChanneState.HANGUP);
 
-				if(customerChannel.getAnsweredTime() > 0L){
-					logger.info("{} recv customerChannel hangup event，" +
-							"due to customerChannel has been answered，" +
-							"now we need not to keep call，so now we hangup extension.", getTraceId());
-					endCall("customerChannel hangup.");
+				if (customerChannel.getAnsweredTime() > 0L) {
+					if (!agentChannel.testFlag(ChannelFlag.HOLD_CALL)) {
+						logger.info("{} recv customerChannel hangup event，" +
+								"due to customerChannel has been answered，" +
+								"now we need not to keep call，so now we hangup extension.", getTraceId());
+						endCall("customerChannel hangup.");
+					}
 				}
 
 				//send callMonitor info
-				if(customerChannel.getCallMonitorInfo() != null) {
+				if (customerChannel.getCallMonitorInfo() != null) {
 					CallMonitorDataPull.remove(customerChannel.getCallMonitorInfo());
 				}
 
-				if(customerChannel.getHangupHook() != null) {
+				if (customerChannel.getHangupHook() != null) {
 					customerChannel.getHangupHook().onHangup(headers, getTraceId());
 					customerChannel.setHangupHook(null);
 				}
-			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
+
+				synchronized (uniqueId.intern()) {
+					if (customerChannel.getGatewayConfig() != null) {
+						SipGatewayLoadBalance.releaseGateway(customerChannel.getGatewayConfig());
+						customerChannel.setGatewayConfig(null);
+					}
+				}
+
+			} else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setHangupTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.HANGUP);
 
 				//send callMonitor info
-				if(agentChannel.getCallMonitorInfo() != null) {
+				if (agentChannel.getCallMonitorInfo() != null) {
 					CallMonitorDataPull.remove(agentChannel.getCallMonitorInfo());
 				}
 
-				if(!agentChannel.testFlag(ChannelFlag.RE_INVITE_VIDEO)) {
-					if(agentChannel.getSendChannelStatusToWsClient()) {
+				if (!agentChannel.testFlag(ChannelFlag.RE_INVITE_VIDEO)) {
+					if (agentChannel.getSendChannelStatusToWsClient()) {
 						JSONObject jsonObject = new JSONObject();
 						String hangupSipCode = headers.get("variable_sip_invite_failure_status");
 						String hangupCause = headers.get("Hangup-Cause");
@@ -211,7 +229,7 @@ public class CallListener implements IEslEventListener {
 						);
 					}
 
-					if(!customerChannel.testFlag(ChannelFlag.HOLD_CALL)) {
+					if (!customerChannel.testFlag(ChannelFlag.HOLD_CALL)) {
 						logger.info("{} extension is hangup，so we must kill customerChannel.", getTraceId());
 						EslConnectionUtil.sendExecuteCommand(
 								"hangup",
@@ -221,14 +239,15 @@ public class CallListener implements IEslEventListener {
 					}
 				}
 
-				if(agentChannel.getHangupHook() != null) {
+				if (agentChannel.getHangupHook() != null) {
 					agentChannel.getHangupHook().onHangup(headers, getTraceId());
 					agentChannel.setHangupHook(null);
 				}
 			}
 			releaseSignal();
 
-		} else if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
+		} else
+			if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
 
 			logger.info("{} recv CHANNEL_PROGRESS_MEDIA event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
@@ -245,13 +264,15 @@ public class CallListener implements IEslEventListener {
 				}
 			}
 
-		} else if (EventNames.RECORD_START.equalsIgnoreCase(eventName)) {
+		} else
+			if (EventNames.RECORD_START.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv record_start confirmed. ", getTraceId());
 
 		} else if (EventNames.RECORD_STOP.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv record_stop confirmed. ", getTraceId());
 
-		}else if (EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)) {
+		}else
+			if (EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv CHANNEL_PARK event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
 				if(customerChannel.getBridgeCallAfterPark()){
