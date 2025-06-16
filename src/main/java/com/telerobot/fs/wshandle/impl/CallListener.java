@@ -133,7 +133,7 @@ public class CallListener implements IEslEventListener {
 						// audio call convert to video call scenario.
 						jsonObject.put("callType", agentChannel.getCallType());
 					}
-					logger.info("{} customerChannel is connected，call confirmed.", getTraceId());
+					logger.info("{} agentChannel is connected，call confirmed.", getTraceId());
 					callApiObject.sendReplyToAgent(
 							new MessageResponse(RespStatus.CALLER_ANSWERED, "call connected.", jsonObject)
 					);
@@ -191,6 +191,14 @@ public class CallListener implements IEslEventListener {
 					customerChannel.getHangupHook().onHangup(headers, getTraceId());
 					customerChannel.setHangupHook(null);
 				}
+
+				synchronized (uniqueId.intern()) {
+					if (customerChannel.getGatewayConfig() != null) {
+						SipGatewayLoadBalance.releaseGateway(customerChannel.getGatewayConfig());
+						customerChannel.setGatewayConfig(null);
+					}
+				}
+
 			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setHangupTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.HANGUP);

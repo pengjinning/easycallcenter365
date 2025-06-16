@@ -765,18 +765,7 @@ public class CallApi extends MsgHandlerBase {
 
                 String originationStr = genCallPhoneString(gatewayConfig, projectId, caseNo, uuidInner,
                         uuidOuter, phone, callType, videoLevel);
-
-
-                IOnHangupHook hangupHook = new IOnHangupHook() {
-                    @Override
-                    public void onHangup(Map<String, String> headers, String traceId) {
-                        SipGatewayLoadBalance.releaseGateway(gatewayConfig);
-                        logger.info("{} releaseGateway gatewayUuid={}, gatewayAddr={}",
-                                traceId, gatewayConfig.getUuid(), gatewayConfig.getGatewayAddr()
-                        );
-                    }
-                };
-                customerChannel.setHangupHook(hangupHook);
+                customerChannel.setGatewayConfig(gatewayConfig);
 
                 connectionPool.getDefaultEslConn().addListener(uuidOuter, listener);
                 logger.info("{} originationStr: originate {}", getTraceId(), originationStr);

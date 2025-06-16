@@ -414,8 +414,9 @@ public class CallTask implements Runnable {
 		);
 
 		String callee = StringUtils.trim(this.phoneInfo.getTelephone());
-		String callParameter = String.format("{%s}sofia/gateway/MRWG/%s  &park()",
+		String callParameter = String.format("{%s}sofia/gateway/%s/%s  &park()",
 				callPrefix.toString(),
+				phoneInfo.getGatewayName(),
 				callee
 		);
 
