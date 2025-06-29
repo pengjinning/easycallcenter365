@@ -200,6 +200,8 @@
             <groupId>link.thingscloud</groupId>
             <artifactId>freeswitch-esl</artifactId>
             <version>1.3.release</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/thirdparty/freeswitch-esl-1.3.release.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -237,6 +239,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <includeSystemScope>true</includeSystemScope>
+                    <fork>true</fork>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
