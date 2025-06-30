@@ -17,7 +17,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 
 /**
- * 话务队列处理类； 系统将为每个业务组产生一个Handler对象，该对象负责处理指定业务组编号的所有呼入请求，
+ * Call queue handler class — a handler object is created for each group
+ *  to process all inbound calls associated with that group's ID.
  * 
  ****/
 public class InboundGroupHandler {
@@ -32,6 +33,22 @@ public class InboundGroupHandler {
 	public int getQueueSize(){
         return inboundCallQueue.size();
     }
+
+	/**
+	 * Calculate and retrieve the number of people ahead of the current customer in the queue
+	 * @param current
+	 * @return
+	 */
+	public int getQueuePosition(CallHandler current) {
+		long currentNumber = current.getQueueNo();
+		int count = 0;
+		for (CallHandler ch : inboundCallQueue) {
+			if (ch.getQueueNo() < currentNumber) {
+				count++;
+			}
+		}
+		return count;
+	}
 
     /** 业务组信息，这里使用学校的固话作为groupId  **/
 	private String groupId = null;
@@ -125,7 +142,7 @@ public class InboundGroupHandler {
 											agent.getOpNum(),
 											agent.getExtNum()
 									);
-									AppContextProvider.getBean(SysService.class).setAgentStatusWithBusyLock(agent.getOpNum(), AgentStatus.busy.getIndex());
+									AppContextProvider.getBean(SysService.class).setAgentStatusWithBusyLock(agent.getOpNum(), AgentStatus.incall.getIndex());
 									agentFound = agent;
 									break;
 								}

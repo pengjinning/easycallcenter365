@@ -6,36 +6,37 @@ package com.telerobot.fs.entity.pojo;
  * @author easycallcenter365@gmail.com
  */
 public enum AgentStatus {
+
+    /**
+     *  刚刚上线，准备就绪中;
+     */
+    justLogin("justLogin", 1),
+
     /**
      * 空闲
      */
-    free("free", 1),
-    /**
-     * 通话中;
-     */
-    calling("calling", 2),
-
+    free("free", 2),
 
     /**
-     * 事后处理中
+     *  手动置忙
      */
     busy("busy", 3),
+
     /**
-     * 休息中
+     * 通话中
      */
-    rest("rest", 4),
+    incall("incall", 4),
+
     /**
-     * 培训中
+     * 事后处理，填写表单中
      */
-    train("train", 5),
+    processing("fill_form", 5),
+
     /**
      * 会议中
      */
-    meeting("meeting", 6),
-    /**
-     *  刚登录系统
-     */
-    justLogin("justLogin", 7);
+    conference("conference", 6);
+
 
     /**
      *  状态描述

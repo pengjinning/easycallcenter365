@@ -7,12 +7,11 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundDetail;
-import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.service.InboundDetailService;
-import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.utils.CommonUtils;
 import io.netty.util.internal.StringUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
@@ -24,6 +23,7 @@ import org.apache.commons.lang.StringUtils;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author easycallcenter365@126.com 
@@ -41,7 +41,7 @@ public class RobotChat extends RobotBase {
         return initApp;
     }
 
-    public RobotChat(InboundDetail callDetail) {
+    public RobotChat(InboundDetail callDetail, AccountBaseEntity llmAccountInfo) {
         this.setAsrModelType(SystemConfig.getValue("robot-asr-type", ASR_TYPE_MRCP));
         logger.info("{} current robot_asr_type={}.",
                 getTraceId(),  this.getAsrModelType()
@@ -60,11 +60,38 @@ public class RobotChat extends RobotBase {
         callDetail.setAnsweredTime(System.currentTimeMillis());
         AcdSqlQueue.addToSqlQueue(callDetail);
         callTaskList.put(uuid, this);
-        createChatBot();
+        createChatBot(llmAccountInfo.provider);
+        chatRobot.setAccount(llmAccountInfo);
         chatRobot.setCallDetail(callDetail);
+        chatRobot.setTtsProvider(llmAccountInfo.voiceSource);
+        chatRobot.setTtsVoiceName(llmAccountInfo.voiceCode);
     }
 
-    public void startProcess(String uniqueID) {
+    private void setRecordings(String mediaFile){
+        String recordDir = SystemConfig.getValue("recording_path", "/home/Records/");
+        EslConnectionUtil.sendExecuteCommand(
+                "record_session",
+                recordDir + mediaFile,
+                uuid,
+                EslConnectionUtil.getDefaultEslConnectionPool()
+        );
+        logger.info("{} start record_session wav/mp4 {}{}", callDetail.getUuid(), recordDir , mediaFile);
+
+        //设置bridge后不挂机;
+        EslConnectionUtil.sendExecuteCommand(
+                "set",
+                "hangup_after_bridge=false",
+                uuid,
+                EslConnectionUtil.getDefaultEslConnectionPool()
+        );
+    }
+
+    public void startProcess(String uniqueID, String mediaFile) {
+
+        if(!StringUtils.isEmpty(mediaFile)) {
+            setRecordings(mediaFile);
+        }
+
         EslMessage apiResponseMsg = EslConnectionUtil.sendSyncApiCommand(
                 "uuid_exists",
                 uniqueID,
@@ -85,7 +112,7 @@ public class RobotChat extends RobotBase {
 
         startAsrProcess(getAsrModelType(), false);
 
-        interactWithRobot("你好。");
+        interactWithRobot("");
     }
 
     protected void processFsMsgEx(Map<String, String> headers) {
@@ -106,7 +133,11 @@ public class RobotChat extends RobotBase {
             long timeSpent =  System.currentTimeMillis() - playbackStartTime;
             logger.info("{} PLAYBACK_START event,  time cost = {} ms. ", getTraceId(), timeSpent);
 
-        }else if (EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)) {
+        }else if(EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName))
+        {
+            logger.info("{} recv CHANNEL_PARK event. ", uuid);
+        }
+        else if (EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)) {
             recvPlayBackEndEvent = true;
             playbackEndTime = System.currentTimeMillis();
             releaseSignal();
@@ -342,7 +373,7 @@ public class RobotChat extends RobotBase {
         recvPlayBackEndEvent = false;
         // 设置合成录音文件的路径，返回给Robot
         if (asrResultEx.size() == 0 && StringUtils.isEmpty(greeting)) {
-            asrResultEx.add("客户没有说话。");
+            asrResultEx.add(chatRobot.getAccount().customerNoVoiceTips);
         }
         if(!StringUtils.isEmpty(greeting)){
             asrResultEx.clear();
@@ -368,6 +399,10 @@ public class RobotChat extends RobotBase {
 
             try {
                 aiphoneRes = chatRobot.talkWithAiAgent(asrStr.toString());
+                if(aiphoneRes == null){
+                    hangupAndCloseConn();
+                    return;
+                }
                 talkRound.increment();
                 Long spentCost = System.currentTimeMillis() - startTime;
                 logger.info("{}  talkWithLargeModel spent time:  {}  ms, aiphoneRes = {}",
@@ -399,10 +434,11 @@ public class RobotChat extends RobotBase {
                                 callDetail.getUuid(),
                                 callDetail.getWavFile(),
                                 callDetail.getGroupId(),
-                                String.valueOf(callDetail.getRemoteVideoPort())
+                                String.valueOf(callDetail.getRemoteVideoPort()),
+                                callDetail.getOutboundPhoneInfo()
                         );
                         logger.info("{} stop_asr process.", uuid);
-                        chatRobot.sendTtsRequest( SystemConfig.getValue("llm-chat-transfer-manual-tips","请稍后，现在为您转接专家坐席。"));
+                        chatRobot.sendTtsRequest(chatRobot.getAccount().transferToAgentTips);
                         // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
                         EslConnectionUtil.sendExecuteCommand("stop_asr", "", uuid);
                         acquire(5000);
@@ -415,26 +451,9 @@ public class RobotChat extends RobotBase {
                     }
 
                     if(toolRequest.getTool().equals(LlmToolRequest.HANGUP)) {
-                        chatRobot.sendTtsRequest( SystemConfig.getValue("llm-chat-transfer-hangup-tips", "欢迎您再次来电咨询，祝您生活愉快，再见!"));
+                        chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
                         acquire(9000);
                         hangupAndCloseConn();
-                        return;
-                    }
-
-                    if(toolRequest.getTool().equals(LlmToolRequest.KB_QUERY)) {
-                        chatRobot.sendTtsRequest("正在为您查询，请稍等。");
-                        acquire(7000);
-                        // wait for tips playback finished
-
-                        String cat = toolRequest.getArguments().getString("key");
-                        LlmKb kb = AppContextProvider.getBean(SysService.class).getKbContentByCat(cat);
-                        String response =  aiphoneRes.getBody() + " 的查询结果如下:";
-                        if(null != kb){
-                            response += kb.getContent();
-                        }else{
-                            response += " 没有查询到相关信息。";
-                        }
-                        interactWithRobot(response);
                         return;
                     }
                 }

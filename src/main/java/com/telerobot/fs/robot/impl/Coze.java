@@ -1,7 +1,5 @@
 package com.telerobot.fs.robot.impl;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.coze.openapi.client.auth.OAuthToken;
 import com.coze.openapi.client.chat.CreateChatReq;
@@ -13,21 +11,16 @@ import com.coze.openapi.service.auth.TokenAuth;
 import com.coze.openapi.service.service.CozeAPI;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
+import com.telerobot.fs.entity.dto.llm.CozeAccount;
+import com.telerobot.fs.entity.dto.llm.LlmAccount;
 import com.telerobot.fs.robot.AbstractChatRobot;
 import com.telerobot.fs.utils.CommonUtils;
 import io.reactivex.Flowable;
 import io.reactivex.schedulers.Schedulers;
 import link.thingscloud.freeswitch.esl.util.CurrentTimeMillisClock;
-import okhttp3.MediaType;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okio.BufferedSource;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Coze  extends AbstractChatRobot {
@@ -37,17 +30,18 @@ public class Coze  extends AbstractChatRobot {
     private static final String COZE_TOKEN_TYPE_OAUTH = "oauth";
     private String token = "";
     private int expireTime = 0;
+    private volatile boolean firstRound = true;
 
     private String getToken(){
-        String cozeTokenType = SystemConfig.getValue("coze_token_type", "pat");
+        String cozeTokenType =  ((CozeAccount)getAccount()).getTokenType();
         if(COZE_TOKEN_TYPE_PAT.equalsIgnoreCase(cozeTokenType)){
-            return SystemConfig.getValue("coze-pat-token");
+            return ((CozeAccount)getAccount()).getPatToken();
         }
 
         String  cozeAPIBase = "https://api.coze.cn";
-        String jwtOauthClientID = SystemConfig.getValue("coze_jwt_oauth_client_id");
-        String jwtOauthPrivateKey = SystemConfig.getValue("coze_jwt_oauth_private_key");
-        String jwtOauthPublicKeyID = SystemConfig.getValue("coze_jwt_oauth_public_key_id");
+        String jwtOauthClientID = ((CozeAccount)getAccount()).getOauthClientId();
+        String jwtOauthPrivateKey = ((CozeAccount)getAccount()).getOauthPrivateKey();
+        String jwtOauthPublicKeyID = ((CozeAccount)getAccount()).getOauthPublicKeyId();
         JWTOAuthClient oauth = null;
 
         try {
@@ -109,17 +103,42 @@ public class Coze  extends AbstractChatRobot {
         aiphoneRes.setClose_phone(0);
         aiphoneRes.setIfcan_interrupt(0);
 
-        JSONObject userMessage1 = new JSONObject();
-        userMessage1.put("role", "user");
-        userMessage1.put("content", question);
-        userMessage1.put("content_type", "text");
-        llmRoundMessages.add(userMessage1);
+        logger.info("talkWithAiAgent, Coze Server-url={}, tokenType={}, botId={} ",
+                getAccount().serverUrl,
+                ((CozeAccount)getAccount()).getTokenType(),
+                ((CozeAccount)getAccount()).getBotId()
+        );
+
+        if(firstRound) {
+            firstRound = false;
+
+            JSONObject userMessage1 = new JSONObject();
+            userMessage1.put("role", "assistant");
+            String openingRemarks = llmAccountInfo.openingRemarks;
+            userMessage1.put("content", openingRemarks);
+            userMessage1.put("content_type", "text");
+            llmRoundMessages.add(userMessage1);
+
+            ttsTextCache.add(openingRemarks);
+            sendToTts();
+            closeTts();
+
+            aiphoneRes.setBody(openingRemarks);
+            return aiphoneRes;
+        }else{
+            JSONObject userMessage1 = new JSONObject();
+            userMessage1.put("role", "user");
+            userMessage1.put("content", question);
+            userMessage1.put("content_type", "text");
+            llmRoundMessages.add(userMessage1);
+        }
 
         try {
             JSONObject response = sendStreamingRequest(aiphoneRes, question, getToken());
             llmRoundMessages.add(response);
         }catch (Throwable throwable) {
-            logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+            logger.error("{} talkWithAiAgent error: {} {}", uuid, throwable.toString(),  CommonUtils.getStackTraceString(throwable.getStackTrace()));
+            return null;
         }
 
         return aiphoneRes;
@@ -129,11 +148,15 @@ public class Coze  extends AbstractChatRobot {
         JSONObject finalResponse = new JSONObject();
         finalResponse.put("role", "assistant");
 
+        String url = getAccount().serverUrl;
+        if(!url.endsWith("/")){
+            url = url + "/";
+        }
         TokenAuth authCli = new TokenAuth(cozeToken);
         // Init the Coze client through the access_token.
         CozeAPI coze =
                 new CozeAPI.Builder()
-                        .baseURL("https://api.coze.cn/v3/chat/")
+                        .baseURL(url)
                         .auth(authCli)
                         .readTimeout(10000)
                         .build();
@@ -144,7 +167,7 @@ public class Coze  extends AbstractChatRobot {
          * chat and will return a Flowable ChatEvent. Developers should iterate the iterator to get
          * chat event and handle them.
          * */
-        String botID =  SystemConfig.getValue("coze-bot-id");
+        String botID = ((CozeAccount)getAccount()).getBotId();
         CreateChatReq req =
                 CreateChatReq.builder()
                         .botID(botID)
@@ -203,7 +226,7 @@ public class Coze  extends AbstractChatRobot {
                         },
                         throwable -> {
                             System.err.println(": " + throwable.getMessage());
-                            logger.info("{} coze error occurred {} {}", uuid, throwable.toString(),
+                            logger.error("{} coze error occurred {} {}", uuid, throwable.toString(),
                                     CommonUtils.getStackTraceString(throwable.getStackTrace()));
                             release();
                         },
@@ -223,6 +246,7 @@ public class Coze  extends AbstractChatRobot {
         closeTts();
 
         finalResponse.put("content", answer);
+        finalResponse.put("content_type", "text");
         aiphoneRes.setBody(answer);
         return finalResponse;
     }

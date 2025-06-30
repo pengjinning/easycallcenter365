@@ -7,9 +7,12 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundBlack;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.dao.LlmAgentAccount;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.robot.RobotChat;
 import com.telerobot.fs.service.InboundBlackService;
 import com.telerobot.fs.service.InboundDetailService;
+import com.telerobot.fs.service.LlmAccountParser;
 import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
@@ -88,7 +91,7 @@ public class InboundCallController {
 		String currentThreadPoolInfo = String.format(
 				"Current thread pool info：taskCount: %d, activeCount: %d, completedTask: %d, corePoolSize: %d, ",
 				mainThreadPool.getTaskCount(),
-				mainThreadPool.getActiveCount() - 3,
+				mainThreadPool.getActiveCount(),
 				mainThreadPool.getCompletedTaskCount(),
 				mainThreadPool.getCorePoolSize()
 		);
@@ -97,7 +100,7 @@ public class InboundCallController {
 		logger.info("uuid: {}, currentThreadPoolInfo: {}", uuid, currentThreadPoolInfo);
 		int maxPoolSize =  mainThreadPool.getCorePoolSize();
 		if(mainThreadPool.getActiveCount() >=  maxPoolSize){
-			logger.error("{} 电话呼入负载过高，请扩容或者调整系统参数!", uuid);
+			logger.error("{} System load is too high; please scale up or adjust system parameters!", uuid);
 		}
 
 		mainThreadPool.execute(
@@ -114,33 +117,43 @@ public class InboundCallController {
 								uuid,
 								mediaFile,
 								groupId,
-								remoteVideoPort
+								remoteVideoPort,
+								null
 						);
 						AppContextProvider.getBean(InboundDetailService.class).insertInbound(inboundDetail);
 						// 查询黑名单
 						InboundBlack inboundBlack = AppContextProvider.getBean(InboundBlackService.class).getInboundBlackByCaller(caller);
                         if(null == inboundBlack) {
-							String recordDir = SystemConfig.getValue("recording_path", "/home/Records/");
-							EslConnectionUtil.sendExecuteCommand(
-									"record_session",
-									recordDir + mediaFile,
-									uuid,
-									EslConnectionUtil.getDefaultEslConnectionPool()
-							);
-							logger.info("{} start record_session wav/mp4 {}{}", inboundDetail.getUuid(), recordDir , mediaFile);
-
-							//设置bridge后不挂机;
-							EslConnectionUtil.sendExecuteCommand(
-									"set",
-									"hangup_after_bridge=false",
-									uuid,
-									EslConnectionUtil.getDefaultEslConnectionPool()
-							);
 
 							if(Boolean.parseBoolean(SystemConfig.getValue("ai-answer-call-first","true"))) {
-								RobotChat robotChat = new RobotChat(inboundDetail);
+
+								StringBuilder voiceSource = new StringBuilder();
+								StringBuilder voiceCode = new StringBuilder();
+								LlmAgentAccount accountJson =
+										AppContextProvider.getBean(InboundDetailService.class).getLlmAgentAccountByCallee(callee, voiceCode, voiceSource);
+								AccountBaseEntity account =  LlmAccountParser.parse(accountJson);
+								if(null == account){
+									logger.error("cant get llmAccount. {}", uuid);
+									EslConnectionUtil.sendExecuteCommand(
+											"hangup",
+											"cant-not-get-llmAccount.",
+											uuid
+									);
+									return;
+								}
+
+								account.voiceSource = voiceSource.toString();
+								account.voiceCode = voiceCode.toString();
+								logger.info("{} voiceSource={}, voiceCode={} for callee {}",
+										uuid,
+										account.voiceSource,
+										account.voiceCode,
+										callee
+								);
+
+								RobotChat robotChat = new RobotChat(inboundDetail, account);
 								if(!robotChat.getHangup()){
-									robotChat.startProcess(uuid);
+									robotChat.startProcess(uuid, mediaFile);
 								}
 							}else{
 								CallHandler callHandler = new CallHandler(inboundDetail);

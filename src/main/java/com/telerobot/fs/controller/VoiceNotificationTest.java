@@ -31,7 +31,7 @@ public class VoiceNotificationTest {
         }
         String json = " {\n" +
                 "             \"wav_base_url\": \""+ url +"\",\n" +
-                "             \"gateway_name\" : \"MRWG\",\n" +
+                "             \"gateway_name\" : \"outbound\",\n" +
                 "             \"data\": [\n" +
                 "                 {\"mobile\": \""+ phone +"\", \"wav\": \"\" },\n" +
                 "                 {\"mobile\": \""+ phone +"\", \"wav\": \"\" }\n" +
@@ -43,7 +43,7 @@ public class VoiceNotificationTest {
         );
 
         Request request = new Request.Builder()
-                .url("http://127.0.0.1:"+ AppContextProvider.getEnvConfig("server.port") +"/call-center/VoiceNotification/start")
+                .url("http://192.168.14.218:"+ AppContextProvider.getEnvConfig("server.port") +"/call-center/VoiceNotification/start")
                 .post(body)
                 .addHeader("Authorization", "Bearer " + token)
                 .build();

@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
+import com.telerobot.fs.entity.dto.llm.LlmAccount;
 import com.telerobot.fs.robot.AbstractChatRobot;
 import com.telerobot.fs.utils.CommonUtils;
 import okhttp3.MediaType;
@@ -18,13 +19,8 @@ import java.io.IOException;
 import java.util.List;
 
 public class MaxKB extends AbstractChatRobot {
+    private volatile boolean firstRound = true;
 
-    /**
-     * MaxKB 相关的三个参数请在数据库中 cc_params 表中设置
-     */
-    private static final String API_KEY = SystemConfig.getValue("maxkb-api-key");
-    private static  final  String Server_URL = SystemConfig.getValue("maxkb-server-url");
-    private static final String MODEL_NAME =  SystemConfig.getValue("maxkb-model");
     private String chat_id = "";
 
     @Override
@@ -34,11 +30,29 @@ public class MaxKB extends AbstractChatRobot {
         aiphoneRes.setClose_phone(0);
         aiphoneRes.setIfcan_interrupt(0);
 
-        JSONObject userMessage1 = new JSONObject();
-        userMessage1.put("role", "user");
-        userMessage1.put("content", question);
-        userMessage1.put("content_type", "text");
-        llmRoundMessages.add(userMessage1);
+        if(firstRound) {
+            firstRound = false;
+
+            JSONObject userMessage1 = new JSONObject();
+            userMessage1.put("role", "assistant");
+            String openingRemarks = llmAccountInfo.openingRemarks;
+            userMessage1.put("content", openingRemarks);
+            userMessage1.put("content_type", "text");
+            llmRoundMessages.add(userMessage1);
+
+            ttsTextCache.add(openingRemarks);
+            sendToTts();
+
+            aiphoneRes.setBody(openingRemarks);
+            return aiphoneRes;
+        }else{
+
+            JSONObject userMessage1 = new JSONObject();
+            userMessage1.put("role", "user");
+            userMessage1.put("content", question);
+            userMessage1.put("content_type", "text");
+            llmRoundMessages.add(userMessage1);
+        }
 
         try {
             JSONObject response = sendStreamingRequest(aiphoneRes);
@@ -52,7 +66,7 @@ public class MaxKB extends AbstractChatRobot {
 
     private  JSONObject sendStreamingRequest(LlmAiphoneRes aiphoneRes) throws IOException {
         JSONObject requestBody = new JSONObject();
-        requestBody.put("model", MODEL_NAME);
+        requestBody.put("model", ((LlmAccount)getAccount()).getModelName());
         requestBody.put("stream", true);
         if (!StringUtils.isEmpty(chat_id)) {
             requestBody.put("chat_id", chat_id);
@@ -70,9 +84,9 @@ public class MaxKB extends AbstractChatRobot {
         );
 
         Request request = new Request.Builder()
-                .url(Server_URL)
+                .url(getAccount().serverUrl)
                 .post(body)
-                .addHeader("Authorization", "Bearer " + API_KEY)
+                .addHeader("Authorization", "Bearer " +  ((LlmAccount)getAccount()).getApiKey())
                 .build();
 
         boolean recvData = false;
@@ -85,7 +99,7 @@ public class MaxKB extends AbstractChatRobot {
                 logger.error("MaxKB api error: http-code={}, msg={}, url={}",
                         response.code(),
                         response.message(),
-                        Server_URL
+                        getAccount().serverUrl
                 );
                 throw new IOException("Unexpected code " + response);
             }

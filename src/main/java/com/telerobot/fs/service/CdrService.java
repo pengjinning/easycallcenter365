@@ -1,18 +1,12 @@
 package com.telerobot.fs.service;
 
-import javax.annotation.Resource;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.po.CdrEntity;
 import com.telerobot.fs.entity.po.CdrEntityEx;
-import com.telerobot.fs.utils.*;
-import com.telerobot.fs.config.SystemConfig;
-import com.telerobot.fs.config.UuidGenerator;
-import com.telerobot.fs.entity.po.CdrEntity;
-import com.telerobot.fs.entity.po.CdrEntityEx;
+import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.OkHttpClientUtil;
 import com.telerobot.fs.utils.StringUtils;
@@ -23,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.io.File;
 import java.util.LinkedList;
 import java.util.List;

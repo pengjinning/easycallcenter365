@@ -32,7 +32,7 @@ public class SysDaoImpl implements SysDao {
 
 	@Override
 	public int setAgentStatus(String opNum, int status) {
-		return mapper.setAgentStatus(opNum, status);
+		return mapper.setAgentStatus(opNum, status, System.currentTimeMillis());
 	}
 
 	@Override
@@ -68,7 +68,7 @@ public class SysDaoImpl implements SysDao {
 
 	@Override
 	public int setAgentStatusWithBusyLock(String opNum, int status, long busyLockTime) {
-		return mapper.setAgentStatus(opNum, status, busyLockTime);
+		return mapper.setAgentStatusWithBusyLock(opNum, status, busyLockTime);
 	}
 
 	@Override

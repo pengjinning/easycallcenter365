@@ -5,7 +5,6 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.dao.CallVoiceNotification;
-import com.telerobot.fs.outbound.notification.TaskManager;
 import com.telerobot.fs.service.VoiceNotificationService;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.wshandle.MessageResponse;
@@ -79,7 +78,7 @@ public class VoiceNotificationController {
             return JSON.toJSONString(msg);
         }
         if(service.insertBatch(list) > 0){
-           boolean success = TaskManager.getInstance().addCallTaskToQueue(list);
+           boolean success = true; // TaskManager.getInstance().addCallTaskToQueue(list);
            if(!success){
                msg.setMsg("queue is full");
                msg.setStatus(500);

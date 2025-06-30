@@ -1,4 +1,4 @@
-package com.telerobot.fs.outbound.notification;
+package com.telerobot.fs.outbound;
 
 
 import com.telerobot.fs.config.SystemConfig;
@@ -6,14 +6,21 @@ import com.telerobot.fs.config.SystemConfig;
 public class CallConfig {
 
 	/**
-	 *  纯AI外呼;
+	 *  Pure manual outbound call
 	 */
-	public static final int CALL_TYPE_PURE_AI_CALL = 1;
-	/**
-	 *  人机耦合;
-	 */
-	public static final int CALL_TYPE_MAN_WITH_AI_CALL = 2;
+	public static final int CALL_TYPE_PURE_MANUAL_CALL = 0;
 
+	/**
+	 *  Pure AI outbound calling;
+	 */
+	public static final int CALL_TYPE_PURE_AI_OUTBOUND_CALL = 1;
+
+	/**
+	 *  Voice call notification
+	 */
+	public static final int CALL_TYPE_VOICE_CALL_NOTIFICATION = 2;
+
+	public static int wait_delay_after_a_batch = Integer.parseInt(SystemConfig.getValue("wait-delay-after-a-batch", "15"));
 
     /**
      * 每个呼叫call的时间间隔，（毫秒）
@@ -36,6 +43,10 @@ public class CallConfig {
 	 */
 	public static  int waitDelayWhenNoAvailableLine = Integer.parseInt(SystemConfig.getValue("voice-notification-wait-delay-while-no-available-line", "7000"));
 
+	/**
+	 * 每次取号码的数量
+	 */
+	public static int outbound_phoneNum_buffer = Integer.parseInt(SystemConfig.getValue("outbound-phoneNum-buffer", "1000"));
 
 	/** (predict-call)系统总的已用线路数 **/
     private static  int maxLineNumber_Used = 0;

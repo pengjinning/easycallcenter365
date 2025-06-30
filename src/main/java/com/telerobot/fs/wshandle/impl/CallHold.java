@@ -93,7 +93,7 @@ public class CallHold extends MsgHandlerBase {
 
             // hangup extension
             callApi.listener.endCall("call_hold.");
-            ThreadUtil.sleep(10);
+            ThreadUtil.sleep(1000);
 
             EslConnectionUtil.sendExecuteCommand("endless_playback",
                     "$${sounds_dir}/ivr/hold.wav",

@@ -1,23 +1,50 @@
 package com.telerobot.fs.service;
 
+import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.dao.LlmAgentAccount;
 import com.telerobot.fs.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class InboundDetailService {
     @Resource
     private JdbcTemplate jdbcTemplate;
     private final static Logger logger = LoggerFactory.getLogger(InboundDetailService.class);
+
+    public LlmAgentAccount getLlmAgentAccountByCallee(String callee, StringBuilder voiceCode, StringBuilder voiceSource){
+
+        String checkSQL = "SELECT * FROM `cc_inbound_llm_account` WHERE callee = '"+ callee.replace("'", "") +"'";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(checkSQL);
+        Iterator<Map<String, Object>> it = rows.iterator();
+        LlmAgentAccount account = null;
+
+        while (it.hasNext()) {
+            Map<String, Object> map = (Map<String, Object>) it.next();
+            int accountId = Integer.parseInt(map.get("llm_account_id").toString());
+            account = AppContextProvider.getBean(CallTaskService.class).getLlmAgentAccountById(accountId);
+
+            voiceCode.append(map.get("voice_code").toString());
+            voiceSource.append(map.get("voice_source").toString());
+            break;
+        }
+
+        return account;
+    }
 
     public void insertInbound(InboundDetail inbound) {
         String sql = "INSERT INTO `cc_inbound_cdr` (id, caller, callee, inbound_time, uuid, wav_file, group_id) " +

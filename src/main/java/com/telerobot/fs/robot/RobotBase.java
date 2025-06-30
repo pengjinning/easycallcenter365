@@ -3,6 +3,7 @@ package com.telerobot.fs.robot;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.bo.RobotInteractiveParam;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
@@ -106,10 +107,9 @@ public abstract class RobotBase implements IEslEventListener {
         }
     }
 
-    protected void createChatBot(){
+    protected void createChatBot(String  provider){
         try {
-            String chatBotType = SystemConfig.getValue("chat-bot-type");
-            chatRobot = (IChatRobot) (Class.forName("com.telerobot.fs.robot.impl." + chatBotType).newInstance());
+            chatRobot = (IChatRobot) (Class.forName("com.telerobot.fs.robot.impl." + provider).newInstance());
             chatRobot.setUuid(uuid);
         }
         catch (Throwable throwable){
@@ -279,7 +279,7 @@ public abstract class RobotBase implements IEslEventListener {
             return;
         }
         this.eslConnectionPool = connectionPool;
-        connectionPool.getDefaultEslConn().addListener(uuid + "-ex", this);
+        connectionPool.getDefaultEslConn().addListener(uuid + "-robot", this);
         robotCounter.increment();
     }
 
@@ -553,6 +553,7 @@ public abstract class RobotBase implements IEslEventListener {
      */
     protected void startAsrProcess(String  asrType, boolean changeAsrType){
         if (asrType.equalsIgnoreCase(ASR_TYPE_WEBSOCKET)){
+            logger.info("{} send start_asr command", getTraceId());
             EslConnectionUtil.sendExecuteCommand(
                     "start_asr",
                     "hello",

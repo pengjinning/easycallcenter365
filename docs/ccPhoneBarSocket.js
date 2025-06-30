@@ -475,34 +475,36 @@ function ccPhoneBarSocket() {
 	 * @type {{rest: number, calling: number, busy: number, free: number, justLogin: number, meeting: number, train: number}}
 	 */
 	ccPhoneBarSocket.agentStatusEnum = {
+
+		/**
+		 *  刚刚上线，尚未就绪中;
+		 */
+		"justLogin" : 1,
+
 		/**
 		 * 空闲
 		 */
-		"free"  :  1,
-		/**
-		 * 通话中;
-		 */
-		"calling"  :  2,
+		"free"  :  2,
+
 		/**
 		 * 事后处理中
 		 */
 		"busy"  :  3,
+
 		/**
-		 * 休息中
+		 * 通话中
 		 */
-		"rest"  :  4,
+		"incall" : 4,
+
 		/**
-		 * 培训中
+		 * 事后处理，填写表单中
 		 */
-		"train"  :  5,
+		"fill_form" : 5,
+
 		/**
 		 * 会议中
 		 */
-		"meeting"  :  6,
-		/**
-		 *  刚登录系统
-		 */
-		"justLogin"  :  7
+		"conference"  :  6
 	};
 
 	//定义视频level-id
@@ -562,7 +564,10 @@ function ccPhoneBarSocket() {
 		// 座席状态改变
 		"status_changed" : "608",
 		// 一个完整的外呼任务结束： [可能尝试了一个或多个网关]
-		"outbound_finished" : "611", 
+		"outbound_finished" : "611",
+
+		// 预测外呼，分配的来电;
+		"PREDICTIVE_CALL_INBOUND" : "612",
 
          // ACD队列分配的新来电
 		"new_inbound_call" : "613",

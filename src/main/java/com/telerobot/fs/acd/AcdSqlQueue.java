@@ -3,6 +3,7 @@ package com.telerobot.fs.acd;
 import com.alibaba.fastjson.JSON;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.outbound.batchcall.ScheduledScanTask;
 import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.utils.ThreadUtil;
 import org.slf4j.Logger;
@@ -20,16 +21,27 @@ import java.util.List;
 public class AcdSqlQueue implements ApplicationListener<ApplicationReadyEvent>   {
 	private static final Logger log = LoggerFactory.getLogger(AcdSqlQueue.class);
 	private static final Object QUEUE_LOCKER = new Object();
-	/**
-	 * 需要保存状态到数据库的电话列表
-	 */
 	private static  List<InboundDetail> dataList = new ArrayList<>(10000);
 
 	/**
-	 * 添加通话记录到SQL队列
+	 * add cdr to sql queue.
 	 * @param phone
 	 */
 	public static void addToSqlQueue(InboundDetail phone){
+		if(phone.getOutboundPhoneInfo() != null){
+
+			phone.getOutboundPhoneInfo().setCallstatus(6);
+			phone.getOutboundPhoneInfo().setAcdOpnum(phone.getOpnum());
+			phone.getOutboundPhoneInfo().setValidTimeLen((int)phone.getTimeLen());
+			phone.getOutboundPhoneInfo().setCallEndTime(phone.getHangupTime());
+			phone.getOutboundPhoneInfo().setDialogue(phone.getChatContent());
+			phone.getOutboundPhoneInfo().setAnsweredTime(phone.getAnsweredTime());
+			phone.getOutboundPhoneInfo().setTimeLen( (int)((phone.getHangupTime() -  phone.getOutboundPhoneInfo().getCalloutTime() )) );
+
+			// Redirect the data to another SQL queue.
+			ScheduledScanTask.addToSQLQueue(phone.getOutboundPhoneInfo());
+			return;
+		}
 		synchronized (QUEUE_LOCKER) {
 			dataList.add(phone);
 		}
