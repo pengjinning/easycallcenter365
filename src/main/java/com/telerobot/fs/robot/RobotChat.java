@@ -7,11 +7,13 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.service.InboundDetailService;
+import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
 import com.telerobot.fs.utils.CommonUtils;
 import io.netty.util.internal.StringUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
@@ -90,6 +92,15 @@ public class RobotChat extends RobotBase {
 
         if(!StringUtils.isEmpty(mediaFile)) {
             setRecordings(mediaFile);
+        }
+
+        AlibabaTokenEntity token = AliyunTTSWebApi.getToken();
+        if(token != null) {
+            logger.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",
+                    uuid, token.getToken(), token.getAppkey()
+            );
+            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
+            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
         }
 
         EslMessage apiResponseMsg = EslConnectionUtil.sendSyncApiCommand(
