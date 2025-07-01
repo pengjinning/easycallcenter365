@@ -85,6 +85,33 @@ public class AliyunTTSWebApi {
         }
     }
 
+    public static AlibabaTokenEntity getToken(){
+        boolean accountUpdated = !SystemConfig.getValue("aliyun-tts-account-json", "").equals(ttsAccountJson);
+        if(StringUtils.isNullOrEmpty(ttsAccountJson) || accountUpdated) {
+            synchronized (AliyunTTSWebApi.class) {
+                accountUpdated = !SystemConfig.getValue("aliyun-tts-account-json", "").equals(ttsAccountJson);
+                if (StringUtils.isNullOrEmpty(ttsAccountJson) || accountUpdated) {
+                    AliAccountTokenCreator.initToken();
+                    ttsAccountJson = SystemConfig.getValue("aliyun-tts-account-json", "");
+                    if (!StringUtils.isNullOrEmpty(ttsAccountJson)) {
+                        try {
+                            ttsAccount = JSON.parseObject(ttsAccountJson, AliyunTtsAccount.class);
+                        } catch (Throwable e) {
+                            log.error("parse `aliyun-tts-account-json` error! ");
+                            return null;
+                        }
+                    } else {
+                        log.error("param `aliyun-tts-account-json` cant not be null.");
+                        return null;
+                    }
+                }
+            }
+        }
+        if(ttsAccount == null){
+            return null;
+        }
+        return AliAccountTokenCreator.getToken(ttsAccount);
+    }
 
     public static boolean shortTextTTSWebAPI(String voiceCode, String text, String ttsPath) {
          if (!org.apache.commons.lang.StringUtils.isNotEmpty(text.trim())) {
@@ -92,24 +119,11 @@ public class AliyunTTSWebApi {
             return true;
         }
 
-        boolean accountUpdated = !SystemConfig.getValue("aliyun-tts-account-json", "").equals(ttsAccountJson);
-        if(StringUtils.isNullOrEmpty(ttsAccountJson) || accountUpdated) {
-            AliAccountTokenCreator.initToken();
-            ttsAccountJson = SystemConfig.getValue("aliyun-tts-account-json", "");
-            if(!StringUtils.isNullOrEmpty(ttsAccountJson)){
-                try {
-                    ttsAccount = JSON.parseObject(ttsAccountJson, AliyunTtsAccount.class);
-                }catch (Throwable e){
-                    log.error("parse `aliyun-tts-account-json` error! ");
-                    return false;
-                }
-            }else{
-                log.error("param `aliyun-tts-account-json` cant not be null.");
-                return false;
-            }
+        AlibabaTokenEntity token = getToken();
+        if(token == null){
+            log.error("ttsAccount is null, cant not process tts request.");
+            return false;
         }
-
-        AlibabaTokenEntity token = AliAccountTokenCreator.getToken(ttsAccount);
         return processPOSTRequest(token.getToken(), voiceCode, text, ttsPath);
     }
 }
