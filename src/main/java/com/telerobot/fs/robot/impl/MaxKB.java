@@ -96,10 +96,11 @@ public class MaxKB extends AbstractChatRobot {
 
         try (Response response = CLIENT.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                logger.error("MaxKB api error: http-code={}, msg={}, url={}",
+                logger.error("MaxKB api error: http-code={}, msg={}, url={}, authorization={}",
                         response.code(),
                         response.message(),
-                        getAccount().serverUrl
+                        getAccount().serverUrl,
+                        ((LlmAccount)getAccount()).getApiKey()
                 );
                 throw new IOException("Unexpected code " + response);
             }
@@ -174,4 +175,86 @@ public class MaxKB extends AbstractChatRobot {
         }
     }
 
+
+    public static void main(String[] args) throws IOException {
+        JSONObject requestBody = new JSONObject();
+        requestBody.put("model", "qwen-plus");
+        requestBody.put("stream", true);
+        // enable stream output
+
+        JSONArray messagesArray = new JSONArray();
+        JSONObject messageObj1 = new JSONObject();
+        messageObj1.put("role", "assistant");
+        messageObj1.put("content", "");
+        messagesArray.add(messageObj1);
+
+        JSONObject messageObj2 = new JSONObject();
+        messageObj2.put("role", "user");
+        messageObj2.put("content", "满意");
+        messagesArray.add(messageObj1);
+        requestBody.put("messages", messagesArray);
+
+        RequestBody body = RequestBody.create(
+                MediaType.parse("application/json"),
+                requestBody.toJSONString()
+        );
+
+        Request request = new Request.Builder()
+                .url("http://192.168.67.228:8080/api/application/f5bf88be-5642-11f0-bcf8-0242ac160003/chat/completions")
+                .post(body)
+                .addHeader("Authorization", "Bearer application-ed43b553626fd5b2235a7691030677f3")
+                .build();
+
+        boolean recvData = false;
+        boolean jsonFormat = false;
+        long startTime = System.currentTimeMillis();
+
+        try (Response response = CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected code " + response);
+            }
+
+            BufferedSource source = response.body().source();
+            StringBuilder responseBuilder = new StringBuilder();
+
+            while (!source.exhausted()) {
+                String line = source.readUtf8Line();
+                if (line != null && line.startsWith("data: ")) {
+                    String jsonData = line.substring(6).trim(); // 去掉 "data: " 前缀
+                    JSONObject jsonResponse = JSON.parseObject(jsonData);
+                    JSONObject message = jsonResponse.getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("delta"); // 注意：流式响应中消息在 "delta" 字段中
+
+                    if (message.containsKey("chat_id")) {
+                        String chatID = message.getString("chat_id");
+                    }
+
+                    if (message.containsKey("content")) {
+                        String speechContent = message.getString("content");
+                        if (StringUtils.isEmpty(speechContent)) {
+                            continue;
+                        }
+                        if (!recvData) {
+                            recvData = true;
+                            long costTime = (System.currentTimeMillis() - startTime);
+                        }
+
+                        if (!StringUtils.isEmpty(speechContent)) {
+                            //  send to tts server
+                            String tmpText = speechContent.trim().replace(" ", "").replace(" ", "");
+                            if (tmpText.startsWith("{") && !jsonFormat) {
+                                jsonFormat = true;
+                            }
+                            responseBuilder.append(tmpText);
+                        }
+                    }
+                }
+            }
+
+            String answer = responseBuilder.toString();
+            System.out.println("======================");
+            System.out.println(answer);
+        }
+    }
 }

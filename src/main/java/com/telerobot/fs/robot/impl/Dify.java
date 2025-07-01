@@ -89,6 +89,8 @@ public class Dify extends AbstractChatRobot {
         boolean jsonFormat = false;
         long startTime = System.currentTimeMillis();
         logger.info("{} http request startTime: {} ms.", uuid, startTime);
+        logger.info("{} http request url: {}.", uuid, getAccount().serverUrl);
+        logger.info("{} http request Authorization: {}.", uuid, ((LlmAccount)getAccount()).getApiKey());
         logger.info("{} http request requestBody: {}.", uuid, requestBody.toJSONString());
 
         try (Response response = CLIENT.newCall(request).execute()) {
@@ -128,16 +130,24 @@ public class Dify extends AbstractChatRobot {
                         }
 
                         if (!StringUtils.isEmpty(speechContent)) {
+
                             //  send to tts server
-                            String tmpText = speechContent.trim().replace(" ", "").replace(" ", "");
-                            if (tmpText.startsWith("{") && !jsonFormat) {
+                            if (speechContent.startsWith("{") && !jsonFormat) {
+                                logger.info("{} json response detected.", getTraceId());
                                 jsonFormat = true;
+                                aiphoneRes.setJsonResponse(true);
                             }
 
-                            if (!StringUtils.isEmpty(tmpText) && !jsonFormat) {
-                                logger.info(tmpText);
+                            if (!StringUtils.isEmpty(speechContent) && !jsonFormat) {
+                                ttsTextCache.add(speechContent);
+                                ttsTextLength += speechContent.length();
+                                // 积攒足够的字数之后，才发送给tts，避免播放异常;
+                                if (ttsTextLength >= 10 && checkPauseFlag(speechContent)) {
+                                    sendToTts();
+                                }
                             }
-                            responseBuilder.append(tmpText);
+                            responseBuilder.append(speechContent);
+
                         }
                     }
                 }
@@ -160,11 +170,11 @@ public class Dify extends AbstractChatRobot {
 
     public static void main(String[] args) {
         String question = "就是不满意";
-        String chat_id = "be25b2c9-21bd-4de9-a4ad-70e0fb64ffda";
-        String uuid = "1234567890";
-        String serverUrl = "http://172.50.14.13:9998/v1/chat-messages";
+        String chat_id = "";
+        String uuid = "";
+        String serverUrl = "http://192.168.67.228:9997/v1/chat-messages";
 //        String apiKey = "app-ZbTK2aN54wrQVhfIVqh3CleE";
-        String apiKey = "app-wlNW2PncViOK69uxJ0z9LNYt";
+        String apiKey = "app-Onkj6oMgv6JhRbRIFODPzzFn";
         JSONObject requestBody = new JSONObject();
         requestBody.put("inputs", new JSONObject());
         requestBody.put("query", question);

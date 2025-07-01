@@ -462,7 +462,11 @@ public class RobotChat extends RobotBase {
                     }
 
                     if(toolRequest.getTool().equals(LlmToolRequest.HANGUP)) {
-                        chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
+                        if (StringUtils.isNotBlank(toolRequest.getContent())) {
+                            chatRobot.sendTtsRequest(toolRequest.getContent());
+                        } else {
+                            chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
+                        }
                         acquire(9000);
                         hangupAndCloseConn();
                         return;
