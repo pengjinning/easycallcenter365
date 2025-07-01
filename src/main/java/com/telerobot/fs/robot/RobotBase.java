@@ -113,8 +113,10 @@ public abstract class RobotBase implements IEslEventListener {
             chatRobot.setUuid(uuid);
         }
         catch (Throwable throwable){
-           logger.error("{} cant not create chatRobot object: {} ", getTraceId(), CommonUtils.getStackTraceString(throwable.getStackTrace())  );
-            System.exit(1);
+           logger.error("{} cant not create chatRobot object, name={}, {}, {} ", provider, getTraceId(),
+                   throwable.toString(),
+                   CommonUtils.getStackTraceString(throwable.getStackTrace())  );
+           hangupAndCloseConn();
         }
     }
 
