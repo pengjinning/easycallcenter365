@@ -163,6 +163,33 @@ public class RespStatus {
     public static final int INNER_CONSULTATION_REQUEST = 626;
 
     /**
+     * customer call session on call-wait.
+     */
+    public static final int CUSTOMER_CHANNEL_CALL_WAIT =  627;
+
+    /**
+     * customer call session off call-wait.
+     */
+    public static final int CUSTOMER_CHANNEL_OFF_CALL_WAIT =  628;
+
+    /**
+     * customer call session on call-wait is hangup.
+     */
+    public static final int CUSTOMER_ON_CALL_WAIT_HANGUP =  629;
+
+    /**
+     *  extension on line event
+     */
+    public static final int EXTENSION_ON_LINE =  630;
+
+    /**
+     * extension off line event
+     */
+    public static final int EXTENSION_OFF_LINE =  631;
+
+
+
+    /**
      * 多人电话会议，重复的被叫;
      */
     public static final int CONFERENCE_REPEAT_CALLEE =  660;

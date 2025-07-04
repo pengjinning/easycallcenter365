@@ -100,11 +100,21 @@ public class CallApi extends MsgHandlerBase {
 		}
 	}
 
+	private void sendCustomerCallToCallWaitHandle(){
+        CallWait callWait =  ((CallWait) this.msgHandlerEngine.getMessageHandleByName("callWait"));
+        callWait.startCallWait();
+        ThreadUtil.sleep(200);
+    }
+
     /**
      * The internal consultation function of the call center is a common one:
      * novices consult experienced employees.
      */
     private void consultation(CallArgs callArgs) {
+
+        // Use the callWait processor to keep the current customer call  on hold with background music.
+        sendCustomerCallToCallWaitHandle();
+
         String from = this.getSessionInfo().getOpNum();
         String to = callArgs.getArgs().getString("to");
         if(from.equalsIgnoreCase(to)){
@@ -191,6 +201,10 @@ public class CallApi extends MsgHandlerBase {
 
                 customerChannel.setAnsweredTime(0L);
                 callApi.connectExtension(customerChannel, agentChannel);
+                if(customerChannel.getAnsweredTime() <= 0){
+                    logger.warn("{} The person being consulted has no answer, terminate call session. ", getTraceId());
+                    this.listener.endCall("Consultation-call-failed.");
+                }
             }
         }else {
             sendReplyToAgent(new MessageResponse(

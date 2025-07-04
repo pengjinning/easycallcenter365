@@ -391,22 +391,38 @@ function ccPhoneBarSocket() {
 					}
 
 					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_channel_hold)) {
-						$("#holdBtnLi").hide();
-						$("#unHoldBtnLi").show();
-						$("#unHoldBtn").addClass('on');
+						_cc.changeUiOnHold();
 					}
 
 					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_channel_unhold)) {
-						$("#holdBtnLi").show();
-						$("#holdBtn").addClass('on');
-						$("#unHoldBtnLi").hide();
+						_cc.changeUiOnUnHold();
 					}
 
 					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_on_hold_hangup)) {
-						$("#holdBtnLi").show();
+						_cc.changeUiOnUnHold();
 						$("#holdBtn").removeClass('on');
-						$("#unHoldBtnLi").hide();
 						$("#callStatus").text("保持的通话已挂机.");
+					}
+
+					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_channel_call_wait)) {
+						$("#stopCallWait").show();
+						$("#doConsultationBtn").hide();
+						$("#callStatus").text("客户电话等待中.");
+						_cc.showTransferAreaUI();
+					}
+
+					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_channel_off_call_wait)) {
+						$("#stopCallWait").hide();
+						_cc.hideTransferAreaUI();
+						$("#callStatus").text("等待的电话已接回.");
+						setTimeout(function() {
+							$('#transferBtn').click();
+						}, 200);
+					}
+
+					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.customer_on_call_wait_hangup)) {
+						$("#stopCallWait").hide();
+						$("#callStatus").text("等待中的客户电话已经挂机.");
 					}
 
 					if (parseInt(resp_status) === parseInt(ccPhoneBarSocket.eventList.agent_status_data_changed)) {
@@ -440,6 +456,28 @@ function ccPhoneBarSocket() {
 	this.sendMsg = function(jsonObject) {
 		console.debug("ws.send:", jsonObject);
 		ws.send(JSON.stringify(jsonObject));
+	};
+
+	this.changeUiOnHold = function() {
+		$("#holdBtnLi").hide();
+		$("#unHoldBtnLi").show();
+		$("#unHoldBtn").addClass('on');
+	};
+
+	this.changeUiOnUnHold = function() {
+		$("#holdBtnLi").show();
+		$("#holdBtn").addClass('on');
+		$("#unHoldBtnLi").hide();
+	};
+
+	this.hideTransferAreaUI = function(){
+		var transferArea = document.getElementById("transfer_area");
+		transferArea.style.display = "none";
+	};
+
+	this.showTransferAreaUI = function(){
+		var transferArea = document.getElementById("transfer_area");
+		transferArea.style.display = "block";
 	};
 
 	/**
@@ -603,11 +641,48 @@ function ccPhoneBarSocket() {
 
 		"asr_process_started" : 622,
 
+		/**
+		 * customer call session hold.
+		 */
 		"customer_channel_hold" : 623,
 
+		/**
+		 * customer call session unHold.
+		 */
 		"customer_channel_unhold" : 624,
 
+		/**
+		 * customer call session on hold is hangup.
+		 */
 		"customer_on_hold_hangup" : 625,
+
+		"inner_consultation_request" : 626,
+
+		/**
+		 * customer call session on call-wait.
+		 */
+		"customer_channel_call_wait" : 627,
+
+		/**
+		 * customer call session off call-wait.
+		 */
+		"customer_channel_off_call_wait" : 628,
+
+		/**
+		 * customer call session on call-wait is hangup.
+		 */
+		"customer_on_call_wait_hangup" : 629,
+
+		/**
+		 *  extension on line event
+		 */
+		"extension_on_line" : 630,
+
+		/**
+		 * extension off line event
+		 */
+		"extension_off_line" : 631,
+
 
 	    /**
 		* 多人电话会议，重复的被叫 ,
@@ -741,6 +816,15 @@ function ccPhoneBarSocket() {
 		ws.send(JSON.stringify(cmdInfo));
 	};
 
+	/**
+	 *  在咨询失败的情况下使用该按钮，接回处于等待中的电话
+	 */
+	this.stopCallWaitBtnClickUI = function () {
+		var cmd = {};
+		cmd.action="callWait";
+		cmd.body = {"cmd" : "stop", "args" : {} };
+		ws.send(JSON.stringify(cmd));
+	};
 
 	this.consultationBtnClickUI = function () {
 		var groupId = $("#transfer_to_groupIds").val();
@@ -1173,6 +1257,7 @@ function ccPhoneBarSocket() {
 			}
 		});
 
+		$("#stopCallWait").hide();
 		$("#doConsultationBtn").hide();
 		$('#consultationBtn').on('click', function () {
 			if ($(this).hasClass('on')) {

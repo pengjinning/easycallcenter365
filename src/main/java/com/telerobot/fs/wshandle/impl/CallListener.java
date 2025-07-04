@@ -119,7 +119,8 @@ public class CallListener implements IEslEventListener {
 					customerChannel.getAnsweredHook().onAnswered(headers, getTraceId());
 					customerChannel.setAnsweredHook(null);
 				}
-			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
+			}else
+				if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setAnsweredTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.ANSWERED);
 
@@ -199,7 +200,8 @@ public class CallListener implements IEslEventListener {
 					}
 				}
 
-			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
+			}else
+				if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setHangupTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.HANGUP);
 
@@ -236,7 +238,8 @@ public class CallListener implements IEslEventListener {
 			}
 			releaseSignal();
 
-		} else if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
+		} else
+			if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
 
 			logger.info("{} recv CHANNEL_PROGRESS_MEDIA event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
@@ -253,13 +256,15 @@ public class CallListener implements IEslEventListener {
 				}
 			}
 
-		} else if (EventNames.RECORD_START.equalsIgnoreCase(eventName)) {
+		} else
+			if (EventNames.RECORD_START.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv record_start confirmed. ", getTraceId());
 
 		} else if (EventNames.RECORD_STOP.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv record_stop confirmed. ", getTraceId());
 
-		}else if (EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)) {
+		}else
+			if (EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv CHANNEL_PARK event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
 				if(customerChannel.getBridgeCallAfterPark()){
