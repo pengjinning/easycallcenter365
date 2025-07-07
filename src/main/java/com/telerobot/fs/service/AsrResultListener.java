@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 
-//@Component
-//@DependsOn({"fsEslStarter"})
+@Component
+@DependsOn({"fsEslStarter"})
 public class AsrResultListener implements ApplicationListener<ApplicationReadyEvent>, IEslEventListener {
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(AsrResultListener.class);
 

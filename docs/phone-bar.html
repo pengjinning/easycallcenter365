@@ -198,6 +198,18 @@ window.onload = function(){
         $("#sendVideoFileBtn").removeAttr("disabled");
     });
 
+    _phoneBar.on(ccPhoneBarSocket.eventList.inner_consultation_start, function(msg){
+        $("#callStatus").text("咨询开始.");
+    });
+
+    _phoneBar.on(ccPhoneBarSocket.eventList.inner_consultation_stop, function(msg){
+        $("#callStatus").text("咨询结束.");
+    });
+
+    _phoneBar.on(ccPhoneBarSocket.eventList.transfer_call_success, function(msg){
+        $("#callStatus").text("电话转接成功.");
+    });
+
     // 订阅的坐席状态列表发生改变
     _phoneBar.on(ccPhoneBarSocket.eventList.agent_status_data_changed, function (msg) {
         console.log("agent_status_data_changed.");
@@ -410,6 +422,10 @@ function onTransferToConferenceSuccess(msg) {
                         <input type="button" name="stopCallWait" id="stopCallWait"
                                onclick="_phoneBar.stopCallWaitBtnClickUI()"
                                style="width: 70px;" value="接回客户" title="在咨询失败的情况下使用该按钮，接回处于等待中的电话。" /> &nbsp;
+
+                        <input type="button" name="transferCallWait" id="transferCallWait"
+                               onclick="_phoneBar.transferCallWaitBtnClickUI()"
+                               style="width: 70px;" value="转接客户" title="在咨询成功的情况下使用该按钮，把电话转接给专家坐席。" /> &nbsp;
 
                         <input type="button" name="doConsultationBtn" id="doConsultationBtn"
                                onclick="_phoneBar.consultationBtnClickUI()"

@@ -159,7 +159,9 @@ public class RespStatus {
      */
     public static final int CUSTOMER_ON_HOLD_HANGUP =  625;
 
-
+    /**
+     * Notify the agent that a call consultation request has been received.
+     */
     public static final int INNER_CONSULTATION_REQUEST = 626;
 
     /**
@@ -187,7 +189,15 @@ public class RespStatus {
      */
     public static final int EXTENSION_OFF_LINE =  631;
 
+    /**
+     * Notify the agent that the call consultation has started.
+     */
+    public static final int INNER_CONSULTATION_START =  632;
 
+    /**
+     *  Notify the agent that the call consultation has stopped.
+     */
+    public static final int INNER_CONSULTATION_STOP =  633;
 
     /**
      * 多人电话会议，重复的被叫;

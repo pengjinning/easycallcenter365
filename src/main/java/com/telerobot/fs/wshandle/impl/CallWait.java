@@ -12,6 +12,10 @@ import java.util.Map;
 public class CallWait extends MsgHandlerBase {
    private volatile   SwitchChannel customerChannel = null;
 
+   protected SwitchChannel getCustomerChannel(){
+       return customerChannel;
+   }
+
     @Override
     public void processTask(MsgStruct data) {
         MessageResponse msg = new MessageResponse();
@@ -186,12 +190,8 @@ public class CallWait extends MsgHandlerBase {
         agentChannel.setAnsweredHook(new IOnAnsweredHook() {
             @Override
             public void onAnswered(Map<String, String> eventHeaders, String traceId) {
-                syncState();
                 logger.info("IOnAnsweredHook executed. uuid={}", bleg);
-                sendReplyToAgent(new MessageResponse(
-                        RespStatus.CUSTOMER_CHANNEL_OFF_CALL_WAIT, "customer call session off call-wait.", customerChannel)
-                );
-                clearHoldCallFlag();
+                onCallWaitStopped();
             }
         });
         customerChannel.setSendChannelStatusToWsClient(true);
@@ -205,6 +205,15 @@ public class CallWait extends MsgHandlerBase {
         setHoldCallFlag();
         customerChannel.setUuidBLeg(bleg);
         callApi.connectExtension(agentChannel, customerChannel);
+    }
+
+    protected void onCallWaitStopped(){
+        customerChannel.setHangupHook(null);
+        syncState();
+        sendReplyToAgent(new MessageResponse(
+                RespStatus.CUSTOMER_CHANNEL_OFF_CALL_WAIT, "customer call session off call-wait.", customerChannel)
+        );
+        clearHoldCallFlag();
     }
 
     private void setHoldCallFlag(){
