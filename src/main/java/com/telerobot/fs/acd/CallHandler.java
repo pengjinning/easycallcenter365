@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.LongAdder;
 public class CallHandler {
 
 	private static AtomicLong globalQueueCounter  = new AtomicLong();
-	private long queueNo = 0L;
+	private volatile long queueNo = 0L;
     public long getQueueNo(){
     	return queueNo;
 	}

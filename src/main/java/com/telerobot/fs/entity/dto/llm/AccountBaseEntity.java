@@ -31,4 +31,19 @@ package com.telerobot.fs.entity.dto.llm;
 
     public String voiceCode;
 
+    /**
+     *   voice interruption supported during the robot's speech:
+     *   1：yes, 0：no
+     */
+    public int interruptFlag;
+
+    /**
+     *  List of keywords that support speech interruption.
+     */
+    public String interruptKeywords;
+
+    /**
+     *  List of keywords excluded from triggering speech interruption.
+     */
+    public String interruptIgnoreKeywords;
 }

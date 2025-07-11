@@ -21,10 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
@@ -251,7 +248,7 @@ public abstract class RobotBase implements IEslEventListener {
     protected EslConnectionPool eslConnectionPool;
 
     protected  boolean getAllowInterrupt(){
-        return Boolean.parseBoolean(SystemConfig.getValue("robot-speech-interrupt-allowed", "true"));
+        return chatRobot.getAccount().interruptFlag == 1;
     }
 
     /**
@@ -585,8 +582,6 @@ public abstract class RobotBase implements IEslEventListener {
         );
     }
 
-
-
     protected void pauseAsr(){
         if(asrPauseEnabled && !getAllowInterrupt()) {
             logger.info("{} try to pause Funasr  ", this.uuid);
@@ -599,5 +594,60 @@ public abstract class RobotBase implements IEslEventListener {
             logger.info("{} try to resume asr  ", this.uuid);
             EslConnectionUtil.sendExecuteCommand("pause_asr", "0", this.uuid, this.eslConnectionPool);
         }
+    }
+
+    private ArrayList<String> parseKeywordsForInterrupt(String keywords){
+        ArrayList<String> list = new ArrayList<>(50);
+        if(!StringUtils.isNotEmpty(keywords)) {
+            String[] array = keywords.trim().split("\\s+");
+            for (String s : array) {
+                String item = s.trim();
+                if(!StringUtils.isEmpty(item)) {
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
+    private ArrayList<String> ignoreKeywordsListForInterrupt = null;
+    private ArrayList<String> keywordsListForInterrupt = null;
+    protected boolean checkSpeechInterrupt(String input) {
+        if (chatRobot.getAccount().interruptFlag == 0) {
+            return false;
+        }
+
+        if (null == ignoreKeywordsListForInterrupt) {
+            ignoreKeywordsListForInterrupt = parseKeywordsForInterrupt(
+                    chatRobot.getAccount().interruptIgnoreKeywords
+            );
+        }
+
+        if (null == keywordsListForInterrupt) {
+            keywordsListForInterrupt = parseKeywordsForInterrupt(
+                    chatRobot.getAccount().interruptKeywords
+            );
+        }
+
+        // Remove all punctuation marks and whitespace.
+        String words = input.replaceAll("[\\p{Punct}\\p{IsPunctuation}]", "").replace(" ", "");
+        if (ignoreKeywordsListForInterrupt.contains(words)) {
+            logger.info("{}  Matched a keyword in the ignore list; voice interruption skipped. {}", getTraceId(), words);
+            return false;
+        }
+
+        if (keywordsListForInterrupt.size() == 0) {
+            logger.info("{}  In the absence of a configured keyword list, speech interruption is assumed to be supported. {}", getTraceId(), words);
+            return true;
+        }
+
+        if (keywordsListForInterrupt.contains(words)) {
+            logger.info("{}  Matched a keyword in the interruptKeywords list; voice interruption allowed. {}", getTraceId(), words);
+            return true;
+        }
+
+        logger.info("{}  No keywords is matched in the interruptKeywords list; voice interruption skipped. {}", getTraceId(), words);
+
+        return false;
     }
 }

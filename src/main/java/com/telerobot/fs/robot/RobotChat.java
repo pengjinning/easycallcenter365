@@ -220,7 +220,6 @@ public class RobotChat extends RobotBase {
                     if (!interactiveParam.checkInSpeaking()) {
                         synchronized (getTraceId().intern()) {
                             if (!interactiveParam.checkInSpeaking()) {
-                                interruptRobotSpeech();
                                 // 用户开始讲话标识
                                 interactiveParam.setInSpeaking(true);
                                 // 唤醒主线程，让主线程可以超出6秒限制;
@@ -231,6 +230,10 @@ public class RobotChat extends RobotBase {
                 }
             } else if ("vad".equalsIgnoreCase(speechEvent)) {
                 logger.info("{}  ** vad end-speaking:  {}", getTraceId(), asrResponse);
+
+                if(checkSpeechInterrupt(asrResponse)) {
+                    interruptRobotSpeech();
+                }
 
                 if (!StringUtil.isNullOrEmpty(asrResponse)) {
                     asrResultEx.add(asrResponse);
@@ -409,7 +412,9 @@ public class RobotChat extends RobotBase {
         LlmAiphoneRes aiphoneRes;
 
             try {
-                aiphoneRes = chatRobot.talkWithAiAgent(asrStr.toString());
+                String question = asrStr.toString();
+                logger.info("{} send question to chatRobot: {}", getTraceId(), question);
+                aiphoneRes = chatRobot.talkWithAiAgent(question);
                 if(aiphoneRes == null){
                     hangupAndCloseConn();
                     return;
