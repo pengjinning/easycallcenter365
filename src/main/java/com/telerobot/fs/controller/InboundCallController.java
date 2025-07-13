@@ -76,7 +76,9 @@ public class InboundCallController {
 	public String inboundCall(HttpServletRequest request) throws InstantiationException, IllegalAccessException {
 		String clientIP = request.getRemoteAddr();
 		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
-			return  "Forbidden, only '127.0.0.1' is allowed.";
+			String tips = "Forbidden, only '127.0.0.1' is allowed.";
+			logger.error(tips);
+			//return  tips;
 		}
 
 		final String uuid = request.getParameter("uuid");
@@ -144,7 +146,7 @@ public class InboundCallController {
 
 								account.voiceSource = voiceSource.toString();
 								account.voiceCode = voiceCode.toString();
-								logger.info("{} voiceSource={}, voiceCode={} for callee {}",
+								logger.info("{} tts config info: voiceSource={}, voiceCode={} for callee {}",
 										uuid,
 										account.voiceSource,
 										account.voiceCode,

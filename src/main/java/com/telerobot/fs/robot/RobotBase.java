@@ -22,10 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -316,28 +313,29 @@ public abstract class RobotBase implements IEslEventListener {
         releaseThreadNum();
     }
 
-    private final Object threadLocker = new Object();
-    protected void acquire(long... waitTimeMills){
+    private final Semaphore waitSemaphore = new Semaphore(0);
+    protected void acquire(long... waitTimeMills) {
         try {
-            synchronized (threadLocker) {
-                if (waitTimeMills.length == 0) {
-                    threadLocker.wait();
-                } else {
-                    threadLocker.wait(waitTimeMills[0]);
-                }
+            if (waitTimeMills.length == 0) {
+                waitSemaphore.acquire();
+            } else {
+                waitSemaphore.tryAcquire(waitTimeMills[0], TimeUnit.MILLISECONDS);
             }
-        } catch (Exception e) {
-            logger.info(getTraceId() + " thread wait failed: " + e.toString());
+        } catch (Throwable e) {
         }
     }
-    protected void releaseSignal(){
+
+    protected void acquireAllPermits() {
         try {
-            synchronized (threadLocker) {
-                threadLocker.notifyAll();
+            if(waitSemaphore.availablePermits() > 0) {
+                waitSemaphore.acquire(waitSemaphore.availablePermits());
             }
-        }catch (Exception e) {
-            logger.info(getTraceId() + " thread notifyAll failed: " + e.toString());
+        } catch (Throwable e) {
         }
+    }
+
+    protected void releaseSignal(){
+        waitSemaphore.release();
     }
 
     protected volatile boolean inIvrProcess = false;
@@ -598,7 +596,7 @@ public abstract class RobotBase implements IEslEventListener {
 
     private ArrayList<String> parseKeywordsForInterrupt(String keywords){
         ArrayList<String> list = new ArrayList<>(50);
-        if(!StringUtils.isNotEmpty(keywords)) {
+        if(StringUtils.isNotEmpty(keywords)) {
             String[] array = keywords.trim().split("\\s+");
             for (String s : array) {
                 String item = s.trim();
@@ -610,6 +608,7 @@ public abstract class RobotBase implements IEslEventListener {
         return list;
     }
 
+    protected  volatile boolean speechInterruptFailed = false;
     private ArrayList<String> ignoreKeywordsListForInterrupt = null;
     private ArrayList<String> keywordsListForInterrupt = null;
     protected boolean checkSpeechInterrupt(String input) {
@@ -631,6 +630,9 @@ public abstract class RobotBase implements IEslEventListener {
 
         // Remove all punctuation marks and whitespace.
         String words = input.replaceAll("[\\p{Punct}\\p{IsPunctuation}]", "").replace(" ", "");
+        if(StringUtils.isEmpty(words)){
+            return false;
+        }
         if (ignoreKeywordsListForInterrupt.contains(words)) {
             logger.info("{}  Matched a keyword in the ignore list; voice interruption skipped. {}", getTraceId(), words);
             return false;
@@ -641,9 +643,11 @@ public abstract class RobotBase implements IEslEventListener {
             return true;
         }
 
-        if (keywordsListForInterrupt.contains(words)) {
-            logger.info("{}  Matched a keyword in the interruptKeywords list; voice interruption allowed. {}", getTraceId(), words);
-            return true;
+        for (String item : keywordsListForInterrupt) {
+             if(words.contains(item)) {
+                 logger.info("{}  Matched a keyword in the interruptKeywords list; voice interruption allowed. {}", getTraceId(), words);
+                 return true;
+             }
         }
 
         logger.info("{}  No keywords is matched in the interruptKeywords list; voice interruption skipped. {}", getTraceId(), words);

@@ -10,4 +10,7 @@ public class LlmAgentAccount {
     private String providerClassName;
     private String accountEntity;
     private String name;
+    private int interruptFlag;
+    private String interruptKeywords;
+    private String interruptIgnoreKeywords;
 }

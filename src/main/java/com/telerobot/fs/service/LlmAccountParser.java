@@ -12,10 +12,14 @@ public class LlmAccountParser {
     protected final static Logger logger = LoggerFactory.getLogger(LlmAccountParser.class);
 
     public static AccountBaseEntity parse(LlmAgentAccount accountJSON ){
+        if(accountJSON == null)  { return null; }
         try {
             Class<?> clazz = Class.forName("com.telerobot.fs.entity.dto.llm." + accountJSON.getAccountEntity());
             AccountBaseEntity entity =  (AccountBaseEntity) JSON.parseObject(accountJSON.getAccountJson(), clazz);
             entity.provider = accountJSON.getProviderClassName();
+            entity.interruptFlag = accountJSON.getInterruptFlag();
+            entity.interruptKeywords = accountJSON.getInterruptKeywords();
+            entity.interruptIgnoreKeywords = accountJSON.getInterruptIgnoreKeywords();
             return entity;
         } catch (Throwable e) {
             logger.error("parse llmAccount error for accountId={}, {} {} ", accountJSON.getId(),
