@@ -105,6 +105,10 @@ public class RobotChat extends RobotBase {
             );
             EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
             EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
+        }else{
+            logger.error("{}  AliyunTTSWebApi getToken error!", getTraceId());
+            hangupAndCloseConn();
+            return;
         }
 
         EslMessage apiResponseMsg = EslConnectionUtil.sendSyncApiCommand(
