@@ -41,6 +41,7 @@ public class Dify extends AbstractChatRobot {
 
             ttsTextCache.add(openingRemarks);
             sendToTts();
+            closeTts();
 
             aiphoneRes.setBody(openingRemarks);
             return aiphoneRes;

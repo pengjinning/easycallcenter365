@@ -91,7 +91,7 @@ public abstract class RobotBase implements IEslEventListener {
     protected IChatRobot chatRobot;
 
     static {
-        maxWaitTimeMills = 1000 * Long.parseLong(SystemConfig.getValue("max-wait-time-after-vad-start", "11"));
+        maxWaitTimeMills = 1000 * Long.parseLong(SystemConfig.getValue("max-wait-time-after-vad-start", "25"));
         asrPauseEnabled = Boolean.parseBoolean(SystemConfig.getValue("asr-pause-enabled", "true"));
 
         String chatBotType = SystemConfig.getValue("chat-bot-type");
@@ -209,8 +209,8 @@ public abstract class RobotBase implements IEslEventListener {
         if(!vadWaitEnabled){
             return 0L;
         }
-        if(recvPlayBackEndEvent){
-            return 0L;
+        if(!recvPlayBackEndEvent){
+            return interruptWaitMills;
         }
 
         long secsPassedIn6SECS = System.currentTimeMillis() - playbackEndTime;
@@ -236,7 +236,7 @@ public abstract class RobotBase implements IEslEventListener {
         if(secsPassedIn6SECS <= 500) {
             waitMills = 5500L;
         }
-        return waitMills;
+        return waitMills < interruptWaitMills ? interruptWaitMills : waitMills;
     }
 
     /**
