@@ -227,7 +227,7 @@ public class BatchTaskManager implements Runnable {
     private List<CustmInfoEntity> GetPhones() {
         List<CustmInfoEntity> resultList = new LinkedList<>();
         int counter = 1;
-        int maxTry = 70;
+        int maxTry = 10;
         boolean errorOccurred = false;
         while (counter <= maxTry) {
             try {

@@ -626,7 +626,7 @@ public class CallTask implements Runnable {
 				callUuid
 		));
 		callPrefix.append(
-				"record_waste_resources=true,record_sample_rate=8000,RECORD_STEREO=false,auto_batchcall_flag=1,"
+				"send_silence_when_idle=-1,record_waste_resources=true,record_sample_rate=8000,RECORD_STEREO=false,auto_batchcall_flag=1,"
 		);
 
 		String caller = callerName;

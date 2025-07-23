@@ -49,7 +49,7 @@ public class CallConfig {
 	public static int outbound_phoneNum_buffer = Integer.parseInt(SystemConfig.getValue("outbound-phoneNum-buffer", "1000"));
 
 	/** (predict-call)系统总的已用线路数 **/
-    private static  int maxLineNumber_Used = 0;
+    private static volatile  int maxLineNumber_Used = 0;
 
     /**
 	 * @return 获取已经使用的外线通道数目

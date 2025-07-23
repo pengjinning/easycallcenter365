@@ -128,9 +128,7 @@ public class RobotChat extends RobotBase {
         }
 
         logger.info("{} startProcess...", getTraceId());
-
         startAsrProcess(getAsrModelType(), false);
-
         interactWithRobot("");
     }
 

@@ -53,6 +53,7 @@ public class ScheduledScanTask implements ApplicationListener<ApplicationReadyEv
 		}
 	}
 
+	private static final int MAX_RETRY = 3;
 	private   void processSQLQueue(List<CustmInfoEntity> phoneList, int taskType) {
 		if (phoneList.size() > 0) {
 			List<CustmInfoEntity> _phoneNumList = new ArrayList<CustmInfoEntity>(10000);
@@ -68,8 +69,10 @@ public class ScheduledScanTask implements ApplicationListener<ApplicationReadyEv
 			}
 
 			boolean updateSuccess = false;
-			while (!updateSuccess) {
+            int counter = 0;
+			while (!updateSuccess && counter <= MAX_RETRY) {
 				try {
+					counter++;
 					long statTime = System.currentTimeMillis();
 					if (taskType == 1) {
 						phoneService.batchUpdatePhone(_phoneNumList);
