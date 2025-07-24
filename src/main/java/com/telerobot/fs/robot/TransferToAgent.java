@@ -42,12 +42,15 @@ public class TransferToAgent {
      */
     public  static  void transfer(InboundDetail callDetail){
         String configType = SystemConfig.getValue("transfer-to-agent-type");
+        logger.info("{} transfer-to-agent-type = {} .", callDetail.getUuid(), configType);
         if(configType.equalsIgnoreCase(TRANSFER_TO_ACD)) {
+            logger.info("{} Try to add call to acd queue .", callDetail.getUuid());
             CallHandler callHandler = new CallHandler(callDetail);
             if (InboundGroupHandler.addCallToQueue(callHandler, callDetail.getGroupId())) {
                 logger.info("{} Successfully add call to acd queue", callDetail.getUuid());
             }
         }else  if(configType.equalsIgnoreCase(TRANSFER_TO_GATEWAY)) {
+            logger.info("{} Try to bridge call to external gateway.", callDetail.getUuid());
             transferToAgentUsingGateway(callDetail);
         }
     }
