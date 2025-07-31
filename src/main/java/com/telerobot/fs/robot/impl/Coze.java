@@ -9,10 +9,8 @@ import com.coze.openapi.client.connversations.message.model.Message;
 import com.coze.openapi.service.auth.JWTOAuthClient;
 import com.coze.openapi.service.auth.TokenAuth;
 import com.coze.openapi.service.service.CozeAPI;
-import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.CozeAccount;
-import com.telerobot.fs.entity.dto.llm.LlmAccount;
 import com.telerobot.fs.robot.AbstractChatRobot;
 import com.telerobot.fs.utils.CommonUtils;
 import io.reactivex.Flowable;
@@ -24,13 +22,11 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Coze  extends AbstractChatRobot {
-
     private String conversationId = "";
     private static final String COZE_TOKEN_TYPE_PAT = "pat";
     private static final String COZE_TOKEN_TYPE_OAUTH = "oauth";
     private String token = "";
     private int expireTime = 0;
-    private volatile boolean firstRound = true;
 
     private String getToken(){
         String cozeTokenType =  ((CozeAccount)getAccount()).getTokenType();
@@ -112,12 +108,8 @@ public class Coze  extends AbstractChatRobot {
         if(firstRound) {
             firstRound = false;
 
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "assistant");
             String openingRemarks = llmAccountInfo.openingRemarks;
-            userMessage1.put("content", openingRemarks);
-            userMessage1.put("content_type", "text");
-            llmRoundMessages.add(userMessage1);
+            addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);
             sendToTts();
@@ -125,20 +117,31 @@ public class Coze  extends AbstractChatRobot {
 
             aiphoneRes.setBody(openingRemarks);
             return aiphoneRes;
-        }else{
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "user");
-            userMessage1.put("content", question);
-            userMessage1.put("content_type", "text");
-            llmRoundMessages.add(userMessage1);
+        }else {
+            if (!StringUtils.isEmpty(question)) {
+                addDialogue(ROLE_USER, question);
+            } else {
+                addDialogue(ROLE_USER, "NO_VOICE");
+
+                String noVoiceTips = llmAccountInfo.customerNoVoiceTips;
+                addDialogue(ROLE_ASSISTANT, noVoiceTips);
+
+                ttsTextCache.add(noVoiceTips);
+                sendToTts();
+                closeTts();
+
+                aiphoneRes.setBody(noVoiceTips);
+            }
         }
 
-        try {
-            JSONObject response = sendStreamingRequest(aiphoneRes, question, getToken());
-            llmRoundMessages.add(response);
-        }catch (Throwable throwable) {
-            logger.error("{} talkWithAiAgent error: {} {}", uuid, throwable.toString(),  CommonUtils.getStackTraceString(throwable.getStackTrace()));
-            return null;
+        if(!firstRound && !StringUtils.isEmpty(question)) {
+            try {
+                JSONObject response = sendStreamingRequest(aiphoneRes, question, getToken());
+                llmRoundMessages.add(response);
+            } catch (Throwable throwable) {
+                logger.error("{} talkWithAiAgent error: {} {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
+                return null;
+            }
         }
 
         return aiphoneRes;

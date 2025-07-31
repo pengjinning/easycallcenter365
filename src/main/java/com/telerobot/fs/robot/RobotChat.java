@@ -127,9 +127,9 @@ public class RobotChat extends RobotBase {
             logger.info("{} uuid_exists check error, can not get apiResponseMsg...", getTraceId());
         }
 
-        logger.info("{} startProcess...", getTraceId());
+        logger.info("{} start robot Process...", getTraceId());
         startAsrProcess(getAsrModelType(), false);
-        interactWithRobot("");
+        interactWithRobot();
     }
 
     protected void processFsMsgEx(Map<String, String> headers) {
@@ -399,21 +399,12 @@ public class RobotChat extends RobotBase {
     /**
      * interactWithRobot
      **/
-    private void interactWithRobot(String greeting) {
+    private void interactWithRobot() {
         ThreadLocalTraceId.getInstance().setTraceId(getTraceId());
         interactiveParam.setAllowInterrupt(0);
         recvPlayBackEndEvent = false;
         speechInterruptFailed = false;
         interactiveParam.setInSpeaking(false);
-
-        // 设置合成录音文件的路径，返回给Robot
-        if (asrResultEx.size() == 0 && StringUtils.isEmpty(greeting)) {
-            asrResultEx.add(chatRobot.getAccount().customerNoVoiceTips);
-        }
-        if(!StringUtils.isEmpty(greeting)){
-            asrResultEx.clear();
-            asrResultEx.add(greeting);
-        }
 
         if(getAsrModelType().equalsIgnoreCase(ASR_TYPE_WEBSOCKET)) {
             pauseAsr();
@@ -653,7 +644,7 @@ public class RobotChat extends RobotBase {
 
             int muteTimeLong = (int) (System.currentTimeMillis() - startWaitTimeMills);
             logger.info("{} The time spent waiting for the customer to finish speaking is {} ms.",getTraceId(), muteTimeLong);
-            interactWithRobot("");
+            interactWithRobot();
         }
     }
 

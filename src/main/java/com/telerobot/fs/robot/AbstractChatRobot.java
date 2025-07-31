@@ -20,6 +20,10 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractChatRobot implements IChatRobot {
 
     protected final static Logger logger = LoggerFactory.getLogger(AbstractChatRobot.class);
+    protected volatile boolean firstRound = true;
+    protected static final String ROLE_USER = "user";
+    protected static final String ROLE_SYSTEM = "system";
+    protected static final String ROLE_ASSISTANT = "assistant";
 
     protected volatile InboundDetail callDetail;
 
@@ -133,6 +137,14 @@ public abstract class AbstractChatRobot implements IChatRobot {
         if(!ttsChannelClosed) {
             EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", "<StopSynthesis/>", uuid);
         }
+    }
+
+    protected  void addDialogue(String role, String content){
+        JSONObject userMessage = new JSONObject();
+        userMessage.put("role",  role);
+        userMessage.put("content",  content);
+        userMessage.put("content_type", "text");
+        llmRoundMessages.add(userMessage);
     }
 
     @Override

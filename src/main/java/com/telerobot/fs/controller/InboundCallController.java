@@ -8,8 +8,10 @@ import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundBlack;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
+import com.telerobot.fs.entity.dto.InboundConfig;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.robot.RobotChat;
+import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.service.InboundBlackService;
 import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.service.LlmAccountParser;
@@ -127,15 +129,25 @@ public class InboundCallController {
 						InboundBlack inboundBlack = AppContextProvider.getBean(InboundBlackService.class).getInboundBlackByCaller(caller);
                         if(null == inboundBlack) {
 
-							if(Boolean.parseBoolean(SystemConfig.getValue("ai-answer-call-first","true"))) {
+							InboundConfig inboundConfig  =
+							              AppContextProvider.getBean(InboundDetailService.class).getInboundConfigByCallee(callee);
 
-								StringBuilder voiceSource = new StringBuilder();
-								StringBuilder voiceCode = new StringBuilder();
-								LlmAgentAccount accountJson =
-										AppContextProvider.getBean(InboundDetailService.class).getLlmAgentAccountByCallee(callee, voiceCode, voiceSource);
+							if(null == inboundConfig){
+								logger.error("{} cant not get inboundConfig for callee {}. ", uuid, callee);
+								EslConnectionUtil.sendExecuteCommand(
+										"hangup",
+										"cant-not-get-inboundConfig.",
+										uuid
+								);
+								return;
+							}
+
+							if("ai".equalsIgnoreCase(inboundConfig.getServiceType())) {
+								LlmAgentAccount accountJson =  AppContextProvider.getBean(CallTaskService.class)
+										.getLlmAgentAccountById(inboundConfig.getLlmAccountId());
 								AccountBaseEntity account =  LlmAccountParser.parse(accountJson);
 								if(null == account){
-									logger.error("cant get llmAccount. {}", uuid);
+									logger.error("{} cant not get llmAccount for callee {}.", uuid, callee);
 									EslConnectionUtil.sendExecuteCommand(
 											"hangup",
 											"cant-not-get-llmAccount.",
@@ -144,8 +156,8 @@ public class InboundCallController {
 									return;
 								}
 
-								account.voiceSource = voiceSource.toString();
-								account.voiceCode = voiceCode.toString();
+								account.voiceSource = inboundConfig.getVoiceSource();
+								account.voiceCode = inboundConfig.getVoiceCode();
 								logger.info("{} tts config info: voiceSource={}, voiceCode={} for callee {}",
 										uuid,
 										account.voiceSource,

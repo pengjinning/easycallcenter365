@@ -63,16 +63,17 @@ public class CallTaskService {
 	}
 
    public LlmAgentAccount getLlmAgentAccountById(int accountId){
-	   List<LlmAgentAccount> list = new LinkedList<LlmAgentAccount>();
+	   List<LlmAgentAccount> list;
 	   String checkSQL = "select * from  cc_llm_agent_account  where id=" + accountId;
 	   RowMapper<LlmAgentAccount> rowMapper = new BeanPropertyRowMapper<>(LlmAgentAccount.class);
 	   try {
 		   list = this.jdbcTemplate.query(checkSQL, rowMapper);
+		   return list.size()  == 1 ? list.get(0) : null;
 	   } catch (Throwable e) {
 		   log.error("An error occurred when obtaining the data of the specified LlmAgentAccount, id={} {} {}", accountId,
 				   e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
 	   }
-	   return list.get(0);
+	   return null;
    }
 
 	public void batchUpdatePhoneStatus(int status, final List<String> phoneIdList) {

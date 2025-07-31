@@ -3,6 +3,7 @@ package com.telerobot.fs.service;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
+import com.telerobot.fs.entity.dto.InboundConfig;
 import com.telerobot.fs.utils.CommonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,24 +27,23 @@ public class InboundDetailService {
     private JdbcTemplate jdbcTemplate;
     private final static Logger logger = LoggerFactory.getLogger(InboundDetailService.class);
 
-    public LlmAgentAccount getLlmAgentAccountByCallee(String callee, StringBuilder voiceCode, StringBuilder voiceSource){
-
+    public InboundConfig getInboundConfigByCallee(String callee){
         String checkSQL = "SELECT * FROM `cc_inbound_llm_account` WHERE callee = '"+ callee.replace("'", "") +"'";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(checkSQL);
         Iterator<Map<String, Object>> it = rows.iterator();
-        LlmAgentAccount account = null;
-
         while (it.hasNext()) {
+            InboundConfig inboundConfig = new InboundConfig();
             Map<String, Object> map = (Map<String, Object>) it.next();
-            int accountId = Integer.parseInt(map.get("llm_account_id").toString());
-            account = AppContextProvider.getBean(CallTaskService.class).getLlmAgentAccountById(accountId);
-
-            voiceCode.append(map.get("voice_code").toString());
-            voiceSource.append(map.get("voice_source").toString());
-            break;
+            inboundConfig.setId((Integer)map.get("id"));
+            inboundConfig.setId((Integer)map.get("llm_account_id"));
+            inboundConfig.setVoiceCode(map.get("voice_code").toString());
+            inboundConfig.setVoiceSource(map.get("voice_source").toString());
+            inboundConfig.setVoiceSource(map.get("service_type").toString());
+            inboundConfig.setGroupId((Integer)map.get("group_id"));
+            return inboundConfig;
         }
 
-        return account;
+        return null;
     }
 
     public void insertInbound(InboundDetail inbound) {

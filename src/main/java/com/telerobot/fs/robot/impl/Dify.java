@@ -18,8 +18,6 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import java.io.IOException;
 
 public class Dify extends AbstractChatRobot {
-    private volatile boolean firstRound = true;
-
     private String chat_id = "";
 
     @Override
@@ -32,12 +30,8 @@ public class Dify extends AbstractChatRobot {
         if(firstRound) {
             firstRound = false;
 
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "assistant");
             String openingRemarks = llmAccountInfo.openingRemarks;
-            userMessage1.put("content", openingRemarks);
-            userMessage1.put("content_type", "text");
-            llmRoundMessages.add(userMessage1);
+            addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);
             sendToTts();
@@ -46,19 +40,29 @@ public class Dify extends AbstractChatRobot {
             aiphoneRes.setBody(openingRemarks);
             return aiphoneRes;
         }else{
+            if (!StringUtils.isEmpty(question)) {
+                addDialogue(ROLE_USER, question);
+            } else {
+                addDialogue(ROLE_USER, "NO_VOICE");
 
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "user");
-            userMessage1.put("content", question);
-            userMessage1.put("content_type", "text");
-            llmRoundMessages.add(userMessage1);
+                String noVoiceTips = llmAccountInfo.customerNoVoiceTips;
+                addDialogue(ROLE_ASSISTANT, noVoiceTips);
+
+                ttsTextCache.add(noVoiceTips);
+                sendToTts();
+                closeTts();
+
+                aiphoneRes.setBody(noVoiceTips);
+            }
         }
 
-        try {
-            JSONObject response = sendStreamingRequest(aiphoneRes, question);
-            llmRoundMessages.add(response);
-        }catch (Throwable throwable) {
-            logger.error("{} talkWith Dify error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+        if(!firstRound && !StringUtils.isEmpty(question)) {
+            try {
+                JSONObject response = sendStreamingRequest(aiphoneRes, question);
+                llmRoundMessages.add(response);
+            } catch (Throwable throwable) {
+                logger.error("{} talkWith Dify error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+            }
         }
 
         return aiphoneRes;

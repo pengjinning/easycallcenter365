@@ -19,9 +19,6 @@ import java.util.List;
 
 public class DeepSeekChat extends AbstractChatRobot {
 
-    private volatile boolean firstRound = true;
-
-
     @Override
     public LlmAiphoneRes  talkWithAiAgent(String question) {
         LlmAiphoneRes aiphoneRes = new  LlmAiphoneRes();
@@ -30,36 +27,41 @@ public class DeepSeekChat extends AbstractChatRobot {
         aiphoneRes.setIfcan_interrupt(0);
         if(firstRound) {
             firstRound = false;
-            JSONObject userMessage0 = new JSONObject();
-            userMessage0.put("role", "system");
             String tips = ((LlmAccount)getAccount()).getLlmTips() + "\n" + ((LlmAccount)getAccount()).getFaqContext();
-            userMessage0.put("content", tips);
-            llmRoundMessages.add(userMessage0);
+            addDialogue(ROLE_SYSTEM, tips);
 
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "assistant");
             String openingRemarks = llmAccountInfo.openingRemarks;
-            userMessage1.put("content", openingRemarks);
-            llmRoundMessages.add(userMessage1);
+            addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);
             sendToTts();
             closeTts();
 
             aiphoneRes.setBody(openingRemarks);
-            return aiphoneRes;
         }else{
-            JSONObject userMessage1 = new JSONObject();
-            userMessage1.put("role", "user");
-            userMessage1.put("content", question);
-            llmRoundMessages.add(userMessage1);
+            if(!StringUtils.isEmpty(question)) {
+                addDialogue(ROLE_USER, question);
+            }else{
+                addDialogue(ROLE_USER, "NO_VOICE");
+
+                String noVoiceTips = llmAccountInfo.customerNoVoiceTips;
+                addDialogue(ROLE_ASSISTANT, noVoiceTips);
+
+                ttsTextCache.add(noVoiceTips);
+                sendToTts();
+                closeTts();
+
+                aiphoneRes.setBody(noVoiceTips);
+            }
         }
 
-        try {
-            JSONObject response = sendStreamingRequest(aiphoneRes, llmRoundMessages);
-            llmRoundMessages.add(response);
-        }catch (Throwable throwable){
-            logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+        if(!firstRound && !StringUtils.isEmpty(question)) {
+            try {
+                JSONObject response = sendStreamingRequest(aiphoneRes, llmRoundMessages);
+                llmRoundMessages.add(response);
+            } catch (Throwable throwable) {
+                logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+            }
         }
 
         return aiphoneRes;
