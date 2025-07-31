@@ -12,6 +12,7 @@ public class LlmToolRequest {
 
     private String tool;
     private JSONObject arguments;
+    private String content;
 
     public String getTool() {
         return tool;
@@ -27,6 +28,14 @@ public class LlmToolRequest {
 
     public void setArguments(JSONObject arguments) {
         this.arguments = arguments;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public static void main(String[] args) {

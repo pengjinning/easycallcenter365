@@ -56,7 +56,7 @@
 
 	<update id="setAgentStatus">
 		update cc_agent_online
-		   set agent_status=#{status}
+		   set agent_status=#{status}, state_change_time=#{stateChangeTime}
 		where opnum=#{opnum}
 	</update>
 
@@ -85,7 +85,7 @@
 			<if test="groupId != null and groupId != 0">
 				and  group_id=#{groupId}
 			</if>
-		 and agent_status=1  and  group_id > 0
+		 and agent_status=2  and  group_id > 0
 		order by lastHangupTime asc
 	</select>
 
@@ -129,47 +129,34 @@
             cc_biz_group
 	</select>
 
-	<select id="getAgentTalkStartTime" resultType="com.telerobot.fs.wshandle.SessionEntity">
-		select  id, extnum, opnum,
-		group_id groupId,
-		session_id  sessionId,
-		agent_status agentStatus,
-		last_hangup_time lastHangupTime,
-		login_time loginTime,
-		client_ip clientIp,
-		skill_level skillLevel,
-		state_change_time stateChangeTime
-		 from cc_agent_online where group_id=#{groupId} and agent_status in (3, 4)
-		order by lastHangupTime asc
-	</select>
 
 
 	<select id="getCallConnectedRateByBatchId" resultType="java.lang.Double">
-		SELECT (SELECT COUNT(*) as connected from batchcall_phone  where batch_id=#{batchId}  and connected_time > 0 and  call_end_time>0 )
-		 / (SELECT COUNT(*) as total from batchcall_phone  where batch_id=#{batchId} and callout_time>0  and  call_end_time>0 ) as connected_rate
+		SELECT (SELECT COUNT(*) as connected from cc_call_phone  where batch_id=#{batchId}  and connected_time > 0 and  call_end_time>0 )
+		 / (SELECT COUNT(*) as total from cc_call_phone  where batch_id=#{batchId} and callout_time>0  and  call_end_time>0 ) as connected_rate
 	</select>
 
 	<select id="getCallDropRateByBatchId" resultType="java.lang.Double">
-		SELECT
-	(select count(*) from batchcall_phone where batch_id=#{batchId}  and  connected_time>0 and callstatus=51)
-	/
-	(select count(*) from batchcall_phone where batch_id=#{batchId}  and connected_time>0 and  call_end_time>0 )
-	as
-	  dropRate
+			SELECT
+		(select count(*) from cc_call_phone where batch_id=#{batchId}  and  connected_time>0 and callstatus=51)
+		/
+		(select count(*) from cc_call_phone where batch_id=#{batchId}  and connected_time>0 and  call_end_time>0 )
+		as
+		  dropRate
 	</select>
 
 	<select id="getAvgRingTimeLenByBatchId" resultType="java.lang.Double">
-		 select avg(connected_time - callout_time)/1000 from batchcall_phone where batch_id=#{batchId}
+		 select avg(connected_time - callout_time)/1000 from cc_call_phone where batch_id=#{batchId}
          and  connected_time>0
 	</select>
 
 	<select id="getAvgPlayTimeLenByBatchId" resultType="java.lang.Double">
-		select  avg(queue_time - connected_time)/1000  from batchcall_phone where batch_id=#{batchId}
+		select  avg(queue_time - connected_time)/1000  from cc_call_phone where batch_id=#{batchId}
 	    and  queue_time>0  and  connected_time>0
 	</select>
 
-	<select id="getAvgTalkTimeLenByopnum" resultType="java.lang.Double">
-		select avg(call_end_time - answered_time)/1000  from batchcall_phone where batch_id=#{batchId}
+	<select id="getAvgTalkTimeLenByUserId" resultType="java.lang.Double">
+		select avg(call_end_time - answered_time)/1000  from cc_call_phone where batch_id=#{batchId}
 	    and  call_end_time>0  and  answered_time>0
 	</select>
 
@@ -215,5 +202,20 @@
 	    busy_lock_time > 0  and busy_lock_time  <=  #{expiredTimeMills}
 	    ]]>
 	</select>
+
+	<select id="getAgentTalkStartTime" resultType="com.telerobot.fs.wshandle.SessionEntity">
+		select  id, extnum, opnum,
+		group_id groupId,
+		session_id  sessionId,
+		agent_status agentStatus,
+		last_hangup_time lastHangupTime,
+		login_time loginTime,
+		client_ip clientIp,
+		skill_level skillLevel,
+		state_change_time stateChangeTime
+		 from cc_agent_online where group_id=#{groupId} and agent_status in (4, 5)
+		order by lastHangupTime asc
+	</select>
+
 
 </mapper>

@@ -3,6 +3,7 @@ package com.telerobot.fs.robot;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.bo.RobotInteractiveParam;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
@@ -20,14 +21,8 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -96,7 +91,7 @@ public abstract class RobotBase implements IEslEventListener {
     protected IChatRobot chatRobot;
 
     static {
-        maxWaitTimeMills = 1000 * Long.parseLong(SystemConfig.getValue("max-wait-time-after-vad-start", "11"));
+        maxWaitTimeMills = 1000 * Long.parseLong(SystemConfig.getValue("max-wait-time-after-vad-start", "25"));
         asrPauseEnabled = Boolean.parseBoolean(SystemConfig.getValue("asr-pause-enabled", "true"));
 
         String chatBotType = SystemConfig.getValue("chat-bot-type");
@@ -106,15 +101,16 @@ public abstract class RobotBase implements IEslEventListener {
         }
     }
 
-    protected void createChatBot(){
+    protected void createChatBot(String  provider){
         try {
-            String chatBotType = SystemConfig.getValue("chat-bot-type");
-            chatRobot = (IChatRobot) (Class.forName("com.telerobot.fs.robot.impl." + chatBotType).newInstance());
+            chatRobot = (IChatRobot) (Class.forName("com.telerobot.fs.robot.impl." + provider).newInstance());
             chatRobot.setUuid(uuid);
         }
         catch (Throwable throwable){
-           logger.error("{} cant not create chatRobot object: {} ", getTraceId(), CommonUtils.getStackTraceString(throwable.getStackTrace())  );
-            System.exit(1);
+           logger.error("{} cant not create chatRobot object, name={}, {}, {} ", provider, getTraceId(),
+                   throwable.toString(),
+                   CommonUtils.getStackTraceString(throwable.getStackTrace())  );
+           hangupAndCloseConn();
         }
     }
 
@@ -213,8 +209,8 @@ public abstract class RobotBase implements IEslEventListener {
         if(!vadWaitEnabled){
             return 0L;
         }
-        if(recvPlayBackEndEvent){
-            return 0L;
+        if(!recvPlayBackEndEvent){
+            return interruptWaitMills;
         }
 
         long secsPassedIn6SECS = System.currentTimeMillis() - playbackEndTime;
@@ -240,7 +236,7 @@ public abstract class RobotBase implements IEslEventListener {
         if(secsPassedIn6SECS <= 500) {
             waitMills = 5500L;
         }
-        return waitMills;
+        return waitMills < interruptWaitMills ? interruptWaitMills : waitMills;
     }
 
     /**
@@ -249,7 +245,7 @@ public abstract class RobotBase implements IEslEventListener {
     protected EslConnectionPool eslConnectionPool;
 
     protected  boolean getAllowInterrupt(){
-        return Boolean.parseBoolean(SystemConfig.getValue("robot-speech-interrupt-allowed", "true"));
+        return chatRobot.getAccount().interruptFlag == 1;
     }
 
     /**
@@ -279,7 +275,7 @@ public abstract class RobotBase implements IEslEventListener {
             return;
         }
         this.eslConnectionPool = connectionPool;
-        connectionPool.getDefaultEslConn().addListener(uuid + "-ex", this);
+        connectionPool.getDefaultEslConn().addListener(uuid + "-robot", this);
         robotCounter.increment();
     }
 
@@ -317,28 +313,29 @@ public abstract class RobotBase implements IEslEventListener {
         releaseThreadNum();
     }
 
-    private final Object threadLocker = new Object();
-    protected void acquire(long... waitTimeMills){
+    private final Semaphore waitSemaphore = new Semaphore(0);
+    protected void acquire(long... waitTimeMills) {
         try {
-            synchronized (threadLocker) {
-                if (waitTimeMills.length == 0) {
-                    threadLocker.wait();
-                } else {
-                    threadLocker.wait(waitTimeMills[0]);
-                }
+            if (waitTimeMills.length == 0) {
+                waitSemaphore.acquire();
+            } else {
+                waitSemaphore.tryAcquire(waitTimeMills[0], TimeUnit.MILLISECONDS);
             }
-        } catch (Exception e) {
-            logger.info(getTraceId() + " thread wait failed: " + e.toString());
+        } catch (Throwable e) {
         }
     }
-    protected void releaseSignal(){
+
+    protected void acquireAllPermits() {
         try {
-            synchronized (threadLocker) {
-                threadLocker.notifyAll();
+            if(waitSemaphore.availablePermits() > 0) {
+                waitSemaphore.acquire(waitSemaphore.availablePermits());
             }
-        }catch (Exception e) {
-            logger.info(getTraceId() + " thread notifyAll failed: " + e.toString());
+        } catch (Throwable e) {
         }
+    }
+
+    protected void releaseSignal(){
+        waitSemaphore.release();
     }
 
     protected volatile boolean inIvrProcess = false;
@@ -553,6 +550,7 @@ public abstract class RobotBase implements IEslEventListener {
      */
     protected void startAsrProcess(String  asrType, boolean changeAsrType){
         if (asrType.equalsIgnoreCase(ASR_TYPE_WEBSOCKET)){
+            logger.info("{} send start_asr command", getTraceId());
             EslConnectionUtil.sendExecuteCommand(
                     "start_asr",
                     "hello",
@@ -582,8 +580,6 @@ public abstract class RobotBase implements IEslEventListener {
         );
     }
 
-
-
     protected void pauseAsr(){
         if(asrPauseEnabled && !getAllowInterrupt()) {
             logger.info("{} try to pause Funasr  ", this.uuid);
@@ -596,5 +592,66 @@ public abstract class RobotBase implements IEslEventListener {
             logger.info("{} try to resume asr  ", this.uuid);
             EslConnectionUtil.sendExecuteCommand("pause_asr", "0", this.uuid, this.eslConnectionPool);
         }
+    }
+
+    private ArrayList<String> parseKeywordsForInterrupt(String keywords){
+        ArrayList<String> list = new ArrayList<>(50);
+        if(StringUtils.isNotEmpty(keywords)) {
+            String[] array = keywords.trim().split("\\s+");
+            for (String s : array) {
+                String item = s.trim();
+                if(!StringUtils.isEmpty(item)) {
+                    list.add(item);
+                }
+            }
+        }
+        return list;
+    }
+
+    protected  volatile boolean speechInterruptFailed = false;
+    private ArrayList<String> ignoreKeywordsListForInterrupt = null;
+    private ArrayList<String> keywordsListForInterrupt = null;
+    protected boolean checkSpeechInterrupt(String input) {
+        if (chatRobot.getAccount().interruptFlag == 0) {
+            return false;
+        }
+
+        if (null == ignoreKeywordsListForInterrupt) {
+            ignoreKeywordsListForInterrupt = parseKeywordsForInterrupt(
+                    chatRobot.getAccount().interruptIgnoreKeywords
+            );
+        }
+
+        if (null == keywordsListForInterrupt) {
+            keywordsListForInterrupt = parseKeywordsForInterrupt(
+                    chatRobot.getAccount().interruptKeywords
+            );
+        }
+
+        // Remove all punctuation marks and whitespace.
+        String words = input.replaceAll("[\\p{Punct}\\p{IsPunctuation}]", "").replace(" ", "");
+        if(StringUtils.isEmpty(words)){
+            return false;
+        }
+        if (ignoreKeywordsListForInterrupt.contains(words)) {
+            logger.info("{}  Matched a keyword in the ignore list; voice interruption skipped. {}", getTraceId(), words);
+            return false;
+        }
+
+        if (keywordsListForInterrupt.size() == 0) {
+            logger.info("{}  In the absence of a configured keyword list, speech interruption is assumed to be supported. {}", getTraceId(), words);
+            return true;
+        }
+
+        for (String item : keywordsListForInterrupt) {
+             if(words.contains(item)) {
+                 logger.info("{}  Matched a keyword in the interruptKeywords list; voice interruption allowed. {}", getTraceId(), words);
+                 return true;
+             }
+        }
+
+        logger.info("{}  No keywords is matched in the interruptKeywords list; voice interruption skipped. {}", getTraceId(), words);
+
+        return false;
     }
 }

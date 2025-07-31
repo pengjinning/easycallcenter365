@@ -6,7 +6,9 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.FreeswitchNodeInfo;
+import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.service.SysService;
+import com.telerobot.fs.tts.aliyun.CosyVoiceDemo;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DESUtil;
 import com.telerobot.fs.utils.DateUtils;
@@ -177,4 +179,29 @@ public class ReloadParams {
 		return  "success";
 	}
 
+	@RequestMapping("/resetTask")
+	@ResponseBody
+	public String resetTask(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException {
+		String clientIP = request.getRemoteAddr();
+		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
+			return  "forbidden, only 127.0.0.1 allowed.";
+		}
+		int batchId = Integer.parseInt(request.getParameter("batchId"));
+		int affectRows = AppContextProvider.getBean(CallTaskService.class).resetBatchInfoAndPhoneData(batchId);
+		//logger.info("cdr=" + cdrString);
+		return  "affectRows=" + affectRows;
+	}
+
+
+
+	@RequestMapping("/cosy")
+	@ResponseBody
+	public String cosy(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException, InterruptedException {
+		String clientIP = request.getRemoteAddr();
+		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
+			return  "forbidden, only 127.0.0.1 allowed.";
+		}
+		CosyVoiceDemo.doCosyMain(null);
+		return "success";
+	}
 }

@@ -2,18 +2,27 @@ package com.telerobot.fs.robot;
 
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 
 public interface IChatRobot {
 
     /**
-     *  和 大模型/智能体 对话
-     * @param question 问题
-     * @return LlmAiphoneRes类型
+     * Account parameter information for accessing the large model or ai-agent
+     * @param llmAccount
+     */
+    void setAccount(AccountBaseEntity llmAccount);
+
+    AccountBaseEntity getAccount();
+
+    /**
+     *  talk with llm or ai-agent.
+     * @param question
+     * @return LlmAiphoneRe
      */
     LlmAiphoneRes talkWithAiAgent(String question);
 
     /**
-     *  设置通话的uuid
+     *  set uuid of call session
      * @param uuid
      */
     void setUuid(String uuid);
@@ -45,4 +54,8 @@ public interface IChatRobot {
      *  标记语音合成的tts通道状态
      */
     void setTtsChannelState(boolean closed);
+
+    void setTtsProvider(String provider);
+
+    void setTtsVoiceName(String voiceName);
 }

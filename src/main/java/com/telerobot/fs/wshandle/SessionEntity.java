@@ -23,6 +23,8 @@ public class SessionEntity {
 	private static final Object LOCKER_HELPER = new Object();
 	private Semaphore lock = new Semaphore(1);
 	private volatile boolean lockReleased = false;
+	private int agentStatus;
+	private long stateChangeTime;
 
 	/**
 	 * 尝试锁定坐席
@@ -159,6 +161,22 @@ public class SessionEntity {
 
 	public void setLastHangupTime(long lastHangupTime) {
 		this.lastHangupTime = lastHangupTime;
+	}
+
+	public int getAgentStatus() {
+		return agentStatus;
+	}
+
+	public void setAgentStatus(int agentStatus) {
+		this.agentStatus = agentStatus;
+	}
+
+	public long getStateChangeTime() {
+		return stateChangeTime;
+	}
+
+	public void setStateChangeTime(long stateChangeTime) {
+		this.stateChangeTime = stateChangeTime;
 	}
 
 	@Override

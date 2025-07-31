@@ -96,7 +96,7 @@ public class RespStatus {
     /**
      * 预测外呼，分配的来电;
      */
-    public static final int PREDICTIVECALL_INBOUND =  612;
+    public static final int PREDICTIVE_CALL_INBOUND =  612;
 
     /**
      * ACD队列分配的新来电

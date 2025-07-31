@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import okhttp3.OkHttpClient;
 import org.apache.commons.lang.StringUtils;
@@ -19,8 +20,18 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractChatRobot implements IChatRobot {
 
     protected final static Logger logger = LoggerFactory.getLogger(AbstractChatRobot.class);
+    protected volatile boolean firstRound = true;
+    protected static final String ROLE_USER = "user";
+    protected static final String ROLE_SYSTEM = "system";
+    protected static final String ROLE_ASSISTANT = "assistant";
 
     protected volatile InboundDetail callDetail;
+
+    protected AccountBaseEntity llmAccountInfo;
+
+    protected String ttsProvider = "";
+
+    protected String ttsVoiceName = "";
 
     protected static final OkHttpClient CLIENT =  new OkHttpClient.Builder()
             .connectTimeout(90, TimeUnit.SECONDS)
@@ -80,6 +91,15 @@ public abstract class AbstractChatRobot implements IChatRobot {
     }
 
     @Override
+    public  void setAccount(AccountBaseEntity llmAccount){
+      this.llmAccountInfo = llmAccount;
+    }
+    @Override
+    public AccountBaseEntity getAccount(){
+       return llmAccountInfo;
+    }
+
+    @Override
     public void sendTtsRequest(String textParam){
         if(StringUtils.isEmpty(textParam)){
             return;
@@ -88,18 +108,25 @@ public abstract class AbstractChatRobot implements IChatRobot {
                 .replace("\\", "")
                 .replace("*", " ")
                 .replace("\n", " ");
-        String voiceSource =  SystemConfig.getValue("stream-tts-voice-source", "aliyuntts");
-        String voiceCode =  SystemConfig.getValue("stream-tts-voice-name", "aixia");
 
         if(ttsChannelClosed) {
-            EslConnectionUtil.sendSyncApiCommand("uuid_break", uuid + " all");
-            EslConnectionUtil.sendExecuteCommand("speak", String.format("%s|%s|%s", voiceSource, voiceCode, text), uuid);
+            EslConnectionUtil.sendExecuteCommand("speak", String.format("%s|%s|%s", ttsProvider, ttsVoiceName, text), uuid);
             ttsChannelClosed = false;
             logger.info("{} sendTtsRequest speak tts text {}", uuid, text);
         }else{
-            EslConnectionUtil.sendExecuteCommand("aliyuntts_resume", text, uuid);
+            EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", text, uuid);
             logger.info("{} sendTtsRequest cosvtts_resume text {}", uuid, text);
         }
+    }
+
+    @Override
+    public void setTtsProvider(String provider){
+        this.ttsProvider = provider;
+    }
+
+    @Override
+    public void setTtsVoiceName(String voiceName){
+      this.ttsVoiceName = voiceName;
     }
 
     /**
@@ -108,8 +135,16 @@ public abstract class AbstractChatRobot implements IChatRobot {
     @Override
     public  void closeTts(){
         if(!ttsChannelClosed) {
-            EslConnectionUtil.sendExecuteCommand("aliyuntts_resume", "<StopSynthesis/>", uuid);
+            EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", "<StopSynthesis/>", uuid);
         }
+    }
+
+    protected  void addDialogue(String role, String content){
+        JSONObject userMessage = new JSONObject();
+        userMessage.put("role",  role);
+        userMessage.put("content",  content);
+        userMessage.put("content_type", "text");
+        llmRoundMessages.add(userMessage);
     }
 
     @Override

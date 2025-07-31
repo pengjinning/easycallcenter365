@@ -25,7 +25,7 @@ public interface SysMapper {
 	 * @param status free OR busy
 	 * @return
 	 */
-	int setAgentStatus(@Param("opnum") String opnum, @Param("status")  int status);
+	int setAgentStatus(@Param("opnum") String opnum, @Param("status")  int status, @Param("stateChangeTime") long stateChangeTime);
 
     int addOnlineUser(@Param("user") AgentEntity user);
 
@@ -53,7 +53,7 @@ public interface SysMapper {
 	 * @param status free OR busy
 	 * @return
 	 */
-	int setAgentStatus(@Param("opnum") String opnum, @Param("status")  int status, @Param("busyLockTime") long busyLockTime);
+	int setAgentStatusWithBusyLock(@Param("opnum") String opnum, @Param("status")  int status, @Param("busyLockTime") long busyLockTime);
 
 
 	int resetAgentBusyLockTime(@Param("opnum") String opnum);

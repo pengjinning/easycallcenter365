@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /***
- * 全局List，存放全部业务组的话务排队处理对象;
+ *  Stores call queue handling objects for all business groups.
  ***/
 public class InboundGroupHandlerList {
     private final static Logger log = LoggerFactory.getLogger(InboundGroupHandlerList.class);
@@ -36,7 +36,7 @@ public class InboundGroupHandlerList {
 	}
 	
 	/***
-	 * 根据业务组信息查找话务队列处理对象
+	 * Find the inboundGroupHandler object based on the group-id
 	 ***/
 	public InboundGroupHandler getCallHandlerBySkillGroupId(String groupId) {
  		InboundGroupHandler destHandler = findHandlerByGroupId(groupId);

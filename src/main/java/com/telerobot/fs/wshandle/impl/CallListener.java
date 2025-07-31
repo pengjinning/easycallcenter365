@@ -1,12 +1,9 @@
 package com.telerobot.fs.wshandle.impl;
 
 import com.alibaba.fastjson.JSONObject;
-import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
-import com.telerobot.fs.entity.bo.ConferenceCommand;
 import com.telerobot.fs.utils.CommonUtils;
-import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadUtil;
 import com.telerobot.fs.wshandle.*;
@@ -14,11 +11,9 @@ import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
-import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 

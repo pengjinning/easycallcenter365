@@ -17,7 +17,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 
 /**
- * 话务队列处理类； 系统将为每个业务组产生一个Handler对象，该对象负责处理指定业务组编号的所有呼入请求，
+ * Call queue handler class — a handler object is created for each group
+ *  to process all inbound calls associated with that group's ID.
  * 
  ****/
 public class InboundGroupHandler {
@@ -141,7 +142,7 @@ public class InboundGroupHandler {
 											agent.getOpNum(),
 											agent.getExtNum()
 									);
-									AppContextProvider.getBean(SysService.class).setAgentStatusWithBusyLock(agent.getOpNum(), AgentStatus.busy.getIndex());
+									AppContextProvider.getBean(SysService.class).setAgentStatusWithBusyLock(agent.getOpNum(), AgentStatus.incall.getIndex());
 									agentFound = agent;
 									break;
 								}

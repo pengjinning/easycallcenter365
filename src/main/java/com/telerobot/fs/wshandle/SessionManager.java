@@ -97,10 +97,12 @@ public class SessionManager {
 		int affectRow = 0;
 		try {
 			affectRow = AppContextProvider.getBean(SysDao.class).removeOnlineUser(optList);
-			logger.info("从数据库中删除会话过期用户数: {}", affectRow);
+			logger.info("delete expired user from database: {}", affectRow);
 		}
 		catch (Exception e){
-			logger.error("从数据库中删除会话过期用户失败: {}", e.toString());
+			logger.error("error occurs while deleting expired user from database: {} , {}", e.toString(),
+			  CommonUtils.getStackTraceString(e.getStackTrace())
+			);
 		}
 		return affectRow;
 	}

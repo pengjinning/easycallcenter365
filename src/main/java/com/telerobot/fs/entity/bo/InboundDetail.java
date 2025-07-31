@@ -1,6 +1,7 @@
 package com.telerobot.fs.entity.bo;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.utils.StringUtils;
 
 public class InboundDetail {
@@ -23,12 +24,14 @@ public class InboundDetail {
     private volatile String uuid = "";
     private volatile String wavFile = "";
     private volatile String chatContent = "";
+    private volatile CustmInfoEntity outboundPhoneInfo = null;
+
     /**
      *  如果该字段不为零，则是视频通话，否则为音频通话
      */
     private volatile int remoteVideoPort = 0;
 
-    public InboundDetail(String id, String caller, String callee, long inboundTime, String uuid, String wavFile, String groupId, String remoteVideoPort) {
+    public InboundDetail(String id, String caller, String callee, long inboundTime, String uuid, String wavFile, String groupId, String remoteVideoPort,  CustmInfoEntity outboundPhoneInfo) {
         this.id = id;
         this.caller = caller;
         this.callee = callee;
@@ -39,6 +42,7 @@ public class InboundDetail {
         if(!StringUtils.isNullOrEmpty(remoteVideoPort)){
             this.remoteVideoPort = Integer.parseInt(remoteVideoPort);
         }
+        this.outboundPhoneInfo = outboundPhoneInfo;
     }
 
     public InboundDetail() {
@@ -178,5 +182,13 @@ public class InboundDetail {
 
     public void setChatContent(String chatContent) {
         this.chatContent = chatContent;
+    }
+
+    public CustmInfoEntity getOutboundPhoneInfo() {
+        return outboundPhoneInfo;
+    }
+
+    public void setOutboundPhoneInfo(CustmInfoEntity outboundPhoneInfo) {
+        this.outboundPhoneInfo = outboundPhoneInfo;
     }
 }
