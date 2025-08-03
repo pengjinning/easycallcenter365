@@ -142,7 +142,16 @@ public class InboundCallController {
 								return;
 							}
 
+							logger.info("{} ServiceType={} for callee {}.",
+									uuid,
+									inboundConfig.getServiceType(),
+									callee
+							);
 							if("ai".equalsIgnoreCase(inboundConfig.getServiceType())) {
+								logger.info("{} Try to transfer call to ai for callee {}.",
+										uuid,
+										callee
+								);
 								LlmAgentAccount accountJson =  AppContextProvider.getBean(CallTaskService.class)
 										.getLlmAgentAccountById(inboundConfig.getLlmAccountId());
 								AccountBaseEntity account =  LlmAccountParser.parse(accountJson);
@@ -170,6 +179,10 @@ public class InboundCallController {
 									robotChat.startProcess(uuid, mediaFile);
 								}
 							}else{
+								logger.info("{} Try to transfer call to acd queue for callee {}.",
+										uuid,
+										callee
+								);
 								CallHandler callHandler = new CallHandler(inboundDetail);
 								if (InboundGroupHandler.addCallToQueue(callHandler, groupId)) {
 									logger.info("{} successfully add call to acd queue.", inboundDetail.getUuid());

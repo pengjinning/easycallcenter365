@@ -11,7 +11,7 @@
 	  
     <script type="text/javascript">
         var _phoneBar = new ccPhoneBarSocket();
-        var scriptServer = "192.168.14.218";
+        var scriptServer = "192.168.1.210";
         var  extnum = '1018'; //分机号
         var opnum = '1018'; //工号
         var skillLevel = 9; //技能等级
@@ -465,6 +465,24 @@ function onTransferToConferenceSuccess(msg) {
         }
     };
 
+    // 根据选中的 groupId 填充 transfer_to_member 数据
+    function populateMemberIdOptions(members, selectedGroupId) {
+        if (!Array.isArray(members)) {
+            console.error("populateMemberOptions: members is not a Array.", members);
+            return;
+        }
+        transferToMember.innerHTML = '<option value="">请选择</option>';
+        members
+            .filter(member => member.groupId === selectedGroupId)
+       .forEach(member => {
+            const option = document.createElement("option");
+        const statusMap = { 1 : "刚签入", 2: "空闲", 3: "忙碌", 4: "通话中", 5: "事后处理" };
+        option.value = member.opnum;
+        option.textContent = `${member.opnum}(${statusMap[member.agentStatus] || ""})`;
+        transferToMember.appendChild(option);
+      });
+    };
+
     function refreshMemberIdList() {
         const selectedGroupId = transferToGroupId.value;
         if(selectedGroupId != "") {
@@ -477,24 +495,6 @@ function onTransferToConferenceSuccess(msg) {
             }
         }
     }
-
-    // 根据选中的 groupId 填充 transfer_to_member 数据
-    function populateMemberIdOptions(members, selectedGroupId) {
-        if (!Array.isArray(members)) {
-            console.error("populateMemberOptions: members is not a Array.", members);
-            return;
-        }
-        transferToMember.innerHTML = '<option value="">请选择</option>';
-        members
-            .filter(member => member.groupId === selectedGroupId)
-       .forEach(member => {
-            const option = document.createElement("option");
-        const statusMap = { 1: "空闲", 2: "通话中", 3: "忙碌" };
-        option.value = member.opnum;
-        option.textContent = `${member.opnum}(${statusMap[member.agentStatus] || ""})`;
-        transferToMember.appendChild(option);
-      });
-    };
 
     /* asr实时对话文本框的功能 */
     _phoneBar.on(ccPhoneBarSocket.eventList.asr_process_started, function (msg) {

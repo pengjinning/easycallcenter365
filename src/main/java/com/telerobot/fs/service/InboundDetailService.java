@@ -35,11 +35,12 @@ public class InboundDetailService {
             InboundConfig inboundConfig = new InboundConfig();
             Map<String, Object> map = (Map<String, Object>) it.next();
             inboundConfig.setId((Integer)map.get("id"));
-            inboundConfig.setId((Integer)map.get("llm_account_id"));
+            inboundConfig.setLlmAccountId((Integer)map.get("llm_account_id"));
             inboundConfig.setVoiceCode(map.get("voice_code").toString());
             inboundConfig.setVoiceSource(map.get("voice_source").toString());
-            inboundConfig.setVoiceSource(map.get("service_type").toString());
+            inboundConfig.setServiceType(map.get("service_type").toString());
             inboundConfig.setGroupId((Integer)map.get("group_id"));
+            inboundConfig.setCallee(callee);
             return inboundConfig;
         }
 
