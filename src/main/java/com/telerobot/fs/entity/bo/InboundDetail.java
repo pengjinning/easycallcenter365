@@ -84,7 +84,7 @@ public class InboundDetail {
         return groupId;
     }
 
-    public void setRequestSkillLevel(String groupId) {
+    public void setGroupId(String groupId) {
         this.groupId = groupId;
     }
 

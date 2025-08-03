@@ -89,7 +89,6 @@ public class InboundCallController {
 		final String mediaPort = request.getParameter("local-media-port");
 		final String remoteVideoPort = request.getParameter("remote_video_port");
 		final String loadTestUuid = request.getParameter("load-test-uuid");
-		final String groupId =  request.getParameter("group-id");
 
 		// 在拨号计划中设置录音路径
 		String currentThreadPoolInfo = String.format(
@@ -99,8 +98,8 @@ public class InboundCallController {
 				mainThreadPool.getCompletedTaskCount(),
 				mainThreadPool.getCorePoolSize()
 		);
-		logger.info("RECV NEW INBOUND CALL, uuid:{}, caller:{}, mediaPort:{}, recordTime: {}, groupId:{}, remoteVideoPort:{}",
-				uuid, caller, mediaPort, loadTestUuid, groupId, remoteVideoPort);
+		logger.info("RECV NEW INBOUND CALL, uuid:{}, caller:{}, mediaPort:{}, recordTime: {}, remoteVideoPort:{}",
+				uuid, caller, mediaPort, loadTestUuid, remoteVideoPort);
 		logger.info("uuid: {}, currentThreadPoolInfo: {}", uuid, currentThreadPoolInfo);
 		int maxPoolSize =  mainThreadPool.getCorePoolSize();
 		if(mainThreadPool.getActiveCount() >=  maxPoolSize){
@@ -112,19 +111,7 @@ public class InboundCallController {
 					@Override
 					public void run() {
 						logger.info("Processing NEW INBOUND CALL, uuid:{}, caller:{}, recordtime:{}",uuid, caller, mediaPort);
-						String mediaFile = genRecordingsFileName(groupId, remoteVideoPort, caller, callee);
-						InboundDetail inboundDetail = new InboundDetail(
-								UuidGenerator.GetOneUuid(),
-								caller,
-								callee,
-								System.currentTimeMillis(),
-								uuid,
-								mediaFile,
-								groupId,
-								remoteVideoPort,
-								null
-						);
-						AppContextProvider.getBean(InboundDetailService.class).insertInbound(inboundDetail);
+
 						// 查询黑名单
 						InboundBlack inboundBlack = AppContextProvider.getBean(InboundBlackService.class).getInboundBlackByCaller(caller);
                         if(null == inboundBlack) {
@@ -141,6 +128,20 @@ public class InboundCallController {
 								);
 								return;
 							}
+
+                            String mediaFile = genRecordingsFileName(remoteVideoPort, caller, callee);
+                            InboundDetail inboundDetail = new InboundDetail(
+                                    UuidGenerator.GetOneUuid(),
+                                    caller,
+                                    callee,
+                                    System.currentTimeMillis(),
+                                    uuid,
+                                    mediaFile,
+                                    String.valueOf(inboundConfig.getGroupId()),
+                                    remoteVideoPort,
+                                    null
+                            );
+                            AppContextProvider.getBean(InboundDetailService.class).insertInbound(inboundDetail);
 
 							logger.info("{} ServiceType={} for callee {}.",
 									uuid,
@@ -184,7 +185,7 @@ public class InboundCallController {
 										callee
 								);
 								CallHandler callHandler = new CallHandler(inboundDetail);
-								if (InboundGroupHandler.addCallToQueue(callHandler, groupId)) {
+								if (InboundGroupHandler.addCallToQueue(callHandler, String.valueOf(inboundConfig.getGroupId()))) {
 									logger.info("{} successfully add call to acd queue.", inboundDetail.getUuid());
 								}
 							}
@@ -212,14 +213,14 @@ public class InboundCallController {
 	}
 
 
-	private String genRecordingsFileName(String groupId, String remoteVideoPort, String caller, String callee){
+	private String genRecordingsFileName(String remoteVideoPort, String caller, String callee){
 		String recordFileExtension = SystemConfig.getValue("recordings_extension", "wav");
 		if(!StringUtils.isNullOrEmpty(remoteVideoPort)){
 			recordFileExtension = "mp4";
 		}
 		String dateStr = DateUtils.format(new Date(), "yyyy/MM/dd/HH");
 		String fileName = caller + "_" + callee + "_" + DateUtils.format(new Date(), "mmss");
-        return String.format("%s/%s/%s.%s", groupId,  dateStr, fileName,  recordFileExtension);
+        return String.format("%s/%s.%s", dateStr, fileName,  recordFileExtension);
 	}
 
 }

@@ -11,7 +11,7 @@
 	  
     <script type="text/javascript">
         var _phoneBar = new ccPhoneBarSocket();
-        var scriptServer = "192.168.1.210";
+        var scriptServer = "8.153.92.191";
         var  extnum = '1018'; //分机号
         var opnum = '1018'; //工号
         var skillLevel = 9; //技能等级
@@ -128,6 +128,10 @@ window.onload = function(){
         console.log(msg);
         _phoneBar.updatePhoneBar(msg, ccPhoneBarSocket.eventListWithTextInfo.ws_disconnected.code);
         $("#transfer_area").hide();
+    });
+
+    _phoneBar.on(ccPhoneBarSocket.eventList.OUTBOUND_START, function (msg) {
+        console.log('outbound_start',msg);
     });
 
     _phoneBar.on(ccPhoneBarSocket.eventListWithTextInfo.request_args_error.code, function(msg){

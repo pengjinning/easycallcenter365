@@ -806,7 +806,12 @@ function ccPhoneBarSocket() {
 		/**
 		 * 成功把通话转接到多人视频会议
 		 */
-		"CONFERENCE_TRANSFER_SUCCESS_FROM_EXISTED_CALL"  :  "678"
+		"CONFERENCE_TRANSFER_SUCCESS_FROM_EXISTED_CALL"  :  "678",
+
+		/**
+		 *  outbound start event
+		 */
+		"OUTBOUND_START" : "679"
 	};
 
 	this.createIframe = function(src){
@@ -1035,16 +1040,17 @@ function ccPhoneBarSocket() {
 			console.log('请先上线.');
 			return;
 		}
+		let outboundInfo = {
+			"gatewayList": _cc.callConfig.gatewayList,
+			'destPhone': phoneNumber,
+			'gatewayEncrypted' : _cc.callConfig.gatewayEncrypted,
+			'useSameAudioCodeForOutbound' : _cc.callConfig.useSameAudioCodeForOutbound,
+			'callType' :  callType,
+			'videoLevel' : videoLevel
+		};
 		this.callControl(
 			"startSession",
-			{
-				"gatewayList": _cc.callConfig.gatewayList,
-				'destPhone': phoneNumber,
-				'gatewayEncrypted' : _cc.callConfig.gatewayEncrypted,
-				'useSameAudioCodeForOutbound' : _cc.callConfig.useSameAudioCodeForOutbound,
-				'callType' :  callType,
-				'videoLevel' : videoLevel
-			}
+			outboundInfo
 		);
 	};
 	

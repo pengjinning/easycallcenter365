@@ -41,7 +41,7 @@ public class TransferToAgent {
      * @param callDetail
      */
     public  static  void transfer(InboundDetail callDetail){
-        String configType = SystemConfig.getValue("transfer-to-agent-type");
+        String configType = SystemConfig.getValue("transfer-to-agent-type", "acd");
         logger.info("{} transfer-to-agent-type = {} .", callDetail.getUuid(), configType);
         if(configType.equalsIgnoreCase(TRANSFER_TO_ACD)) {
             logger.info("{} Try to add call to acd queue .", callDetail.getUuid());

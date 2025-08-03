@@ -39,7 +39,7 @@ public class InboundDetailService {
             inboundConfig.setVoiceCode(map.get("voice_code").toString());
             inboundConfig.setVoiceSource(map.get("voice_source").toString());
             inboundConfig.setServiceType(map.get("service_type").toString());
-            inboundConfig.setGroupId((Integer)map.get("group_id"));
+            inboundConfig.setGroupId((Integer) map.get("group_id"));
             inboundConfig.setCallee(callee);
             return inboundConfig;
         }

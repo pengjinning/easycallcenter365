@@ -295,4 +295,9 @@ public class RespStatus {
      * 多人电话会议，成功把现有通话转接到多人视频会议；
      */
     public static final int CONFERENCE_TRANSFER_SUCCESS_FROM_EXISTED_CALL =  678;
+
+    /**
+     *  outbound start event
+     */
+    public static final int OUTBOUND_START=  679;
 }

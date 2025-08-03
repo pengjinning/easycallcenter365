@@ -902,6 +902,17 @@ public class CallApi extends MsgHandlerBase {
             return;
         }
 
+        JSONObject outboundStartEvent = new JSONObject();
+        outboundStartEvent.put("uuid", agentChannel.getUuid());
+        outboundStartEvent.put("destPhone", customerChannel.getPhoneNumber());
+        this.sendReplyToAgent(
+                new MessageResponse(
+                        RespStatus.OUTBOUND_START,
+                        "outbound start event",
+                        outboundStartEvent
+                )
+        );
+
         //记录已经尝试过的网关;
         List<GatewayConfig> triedList = new ArrayList<>(10);
         EslConnectionPool connectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
