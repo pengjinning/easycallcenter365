@@ -425,6 +425,17 @@ public class RobotChat extends RobotBase {
 
             try {
                 String question = asrStr.toString();
+                if(StringUtils.isEmpty(question)) {
+                    int counter = noVoiceCounter.incrementAndGet();
+                    if (counter > 3) {
+                        chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
+                        chatRobot.closeTts();
+                        acquireAllPermits();
+                        acquire(9000);
+                        hangupAndCloseConn();
+                        return;
+                    }
+                }
                 logger.info("{} send question to chatRobot: {}", getTraceId(), question);
                 aiphoneRes = chatRobot.talkWithAiAgent(question);
                 if(aiphoneRes == null){
@@ -467,6 +478,7 @@ public class RobotChat extends RobotBase {
                         );
                         logger.info("{} stop_asr process.", uuid);
                         chatRobot.sendTtsRequest(chatRobot.getAccount().transferToAgentTips);
+                        chatRobot.closeTts();
                         // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
                         EslConnectionUtil.sendExecuteCommand("stop_asr", "", uuid);
                         acquireAllPermits();
@@ -485,6 +497,7 @@ public class RobotChat extends RobotBase {
                         } else {
                             chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
                         }
+                        chatRobot.closeTts();
                         acquireAllPermits();
                         acquire(9000);
                         hangupAndCloseConn();

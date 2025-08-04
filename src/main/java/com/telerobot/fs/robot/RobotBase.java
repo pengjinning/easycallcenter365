@@ -32,6 +32,7 @@ public abstract class RobotBase implements IEslEventListener {
     public static  final String  ASR_TYPE_MRCP = "mrcp";
     public static  final String  ASR_TYPE_WEBSOCKET = "websocket";
     public static final  String NO_VOICE = "NO_VOICE";
+    protected AtomicInteger noVoiceCounter = new AtomicInteger(0);
 
     /**
      *  交互轮次;
