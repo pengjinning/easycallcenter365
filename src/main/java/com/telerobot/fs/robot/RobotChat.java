@@ -69,7 +69,7 @@ public class RobotChat extends RobotBase {
         chatRobot.setTtsVoiceName(llmAccountInfo.voiceCode);
 
         if(getAllowInterrupt() && ASR_TYPE_MRCP.equalsIgnoreCase(this.getAsrModelType())){
-            logger.error("{} `robot-speech-interrupt-allowed=true` parameter is not effective in the mrcp speech recognition mode.", uuid);
+            logger.error("{} `robot-speech-interrupt-allowed`  is not effective in the mrcp speech recognition mode.", uuid);
         }
     }
 
