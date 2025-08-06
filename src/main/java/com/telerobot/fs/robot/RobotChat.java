@@ -461,8 +461,26 @@ public class RobotChat extends RobotBase {
                  */
 
                 if(aiphoneRes.isJsonResponse()){
-                    LlmToolRequest toolRequest = JSON.parseObject(
-                            aiphoneRes.getBody(), LlmToolRequest.class);
+                    LlmToolRequest toolRequest = null;
+                    try {
+                        toolRequest = JSON.parseObject(
+                                aiphoneRes.getBody(), LlmToolRequest.class);
+                    }catch (Throwable t){
+                        logger.warn("{} An exception was returned by the large model and the JSON could not be parsed "+
+                                " — the program will handle this case with special processing.", getTraceId());
+                        toolRequest = new LlmToolRequest();
+
+                        if( aiphoneRes.getBody() != null){
+                            if(aiphoneRes.getBody().contains(LlmToolRequest.TRANSFER_TO_AGENT)){
+                                toolRequest.setTool(LlmToolRequest.TRANSFER_TO_AGENT);
+                            }
+                            if(aiphoneRes.getBody().contains(LlmToolRequest.HANGUP)){
+                                toolRequest.setTool(LlmToolRequest.HANGUP);
+                            }
+                            toolRequest.setContent(null);
+                        }
+                    }
+
                     if(toolRequest.getTool().equals(LlmToolRequest.TRANSFER_TO_AGENT)) {
                         transferToAgent = true;
                         InboundDetail callDetailNew = new InboundDetail(

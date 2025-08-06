@@ -86,7 +86,7 @@
 				and  group_id=#{groupId}
 			</if>
 		 and agent_status=2  and  group_id > 0
-		order by lastHangupTime asc
+		order by skill_level DESC, lastHangupTime asc
 	</select>
 
 	<select id="getPowerByExtNum" resultType="com.telerobot.fs.entity.dao.ExtPowerConfig">

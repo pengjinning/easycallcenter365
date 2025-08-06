@@ -11,11 +11,12 @@ sleep 3
 
 echo "Try to stop freeswitch-docker..."
 docker stop  freeswitch-debian12
+/usr/bin/pkill -9 freeswitch
 sleep 3
 
 echo "Try to stop easycallcenter365.jar "
 echo "Try to stop callcenter-manager.jar"
-pkill -9 java
+/usr/bin/pkill -9 java
 
 echo " "
 echo "Done."
