@@ -93,7 +93,7 @@ source ~/.profile
 
 参考文件 [Deploy.txt](https://github.com/easycallcenter365/easycallcenter365/blob/master/Deploy.txt)。
 
-此外我们还编写了 [图文手册](/blob/master/docs/manual/manual.md) 供参考。
+此外我们还编写了 [图文手册](/docs/manual/manual.md) 供参考。
    
 ### 目前支持哪些语音识别方式?   
 
