@@ -6,18 +6,16 @@
 
 ### 功能列表
 
-* 支持对接大模型
-* 支持对接 `coze` 智能体
-* 支持对接 `maxKB` 开源知识库
-* 支持AI客服说话时被打断
+* 支持对接大模型/ `coze` 智能体 / Dify /MaxKB
+* 支持AI客服说话时被打断/打断关键词设置
 * 提供网页管理系统，支持在线配置
-* 实时流式语音合成
-* 支持acd话务排队
+* 实时流式语音合成/FunAsr开源语音识别/阿里云语音识别
 * 支持AI通话无缝转接人工坐席
-* 支持电话工具条
-* 支持IMS视频通话/语音通话转视频
+* 支持电话工具条/支持acd话务排队
+* 支持多个AI呼入客服/独立配置呼入号码及大模型底座
+* 支持创建AI语音外呼任务
  
-更新日期: 2025/05/05
+更新日期: 2025/08/05
 
 ### 技术交流 && 商业咨询
 
@@ -40,7 +38,9 @@
 
 ### 系统截图
 
-![系统截图](webgui.png)
+![系统截图](/docs/shot/webgui-1.png)
+![系统截图](/docs/shot/webgui-2.png)
+![系统截图](/docs/shot/webgui-3.png)
 
 ### 呼入电话的处理流程
 
@@ -93,11 +93,12 @@ source ~/.profile
 
 参考文件 [Deploy.txt](https://github.com/easycallcenter365/easycallcenter365/blob/master/Deploy.txt)。
 
+此外我们还编写了 [图文手册](https://github.com/easycallcenter365/easycallcenter365/blob/master/docs/manual/manual.md) 供参考。
    
 ### 目前支持哪些语音识别方式?   
 
 目前支持 websocket、mrcp 语音识别方式。目前 mod_funasr 支持 websocket 方式对接funasr语音识别。 
-mrcp 语音识别方式，支持阿里云语音识别， 可以参考阿里云官网关于sdm-mrcp-server配置阿里云asr的文档。  
+mrcp 语音识别方式，支持阿里云语音识别。  
 注意：目前mrcp语音识别方式，无法实现对机器人语音的打断功能。  
   
 
@@ -120,10 +121,6 @@ gatewayAddr=192.168.14.252:5090&caller=64901409&profile=external&calleePrefix=
 ### 如何设置转内置人工坐席
 
   在AI通话中，如果用户明确表达了转人工的诉求，系统会自动转人工坐席。
-  
-  登录可视化web管理后台，找到菜单: "呼叫管理" -> "参数设置"。
-  
-  请把参数 `transfer-to-agent-type` 的值设置为 `acd`。
 
   转人工坐席的流程是，先自动排队，然后转接给空闲坐席处理，坐席需要通过电话工具条登录。  
   
