@@ -34,8 +34,8 @@ public abstract class AbstractChatRobot implements IChatRobot {
     protected String ttsVoiceName = "";
 
     protected static final OkHttpClient CLIENT =  new OkHttpClient.Builder()
-            .connectTimeout(90, TimeUnit.SECONDS)
-            .readTimeout(90, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build();
 
     protected String uuid;
@@ -115,7 +115,7 @@ public abstract class AbstractChatRobot implements IChatRobot {
             logger.info("{} sendTtsRequest speak tts text {}", uuid, text);
         }else{
             EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", text, uuid);
-            logger.info("{} sendTtsRequest cosvtts_resume text {}", uuid, text);
+            logger.info("{} sendTtsRequest tts_resume text {}", uuid, text);
         }
     }
 
