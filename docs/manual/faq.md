@@ -18,6 +18,10 @@
 
 ### 2. 启动外呼任务，没接到电话
 排查方法：进入“AI外呼->外呼任务管理”和“AI外呼->AI外呼记录”两个页面，关注外呼任务列表的“任务类型”、“最大并发”、“总名单量”和“未拨打”列的值，和外呼记录列表的“外呼状态”列的值。
+![calltask-list.png](faq/calltask-list.png)
+
+![callrecord-list.png](faq/callrecord-list.png)
+
 情况1：“任务类型”不是“AI外呼”
 分析：关于3种任务类型的描述如下，每个任务类型使用对应的名单导入模板
 （1） 纯人工预测外呼，是系统自动批呼，接通后转真人坐席，真人与客户沟通，坐席等待接通电话即可，不需要手动拨号，省去了等待振铃的时间，可以提升外呼效率，必须有空闲坐席电话才会呼出去
@@ -43,7 +47,7 @@
 ### 3. 电话接通后秒挂
 排查方法：
 (1) 查看easycallcenter365的日志，日志路径:/home/easycallcenter365/logs/easycallcenter365.log
-(2) 如果日志没有报错，检查线路配置（呼叫管理->线路配置）、大模型配置（呼叫管理->大模型配置），如果是coze、dify或者maxkb，务必先通过文本测试后再接入
+(2) 如果日志没有报错，检查线路配置（基础配置->线路配置）、大模型配置（基础配置->大模型配置），如果是coze、dify或者maxkb，务必先通过文本测试后再接入
 
 注意1：dify的url地址后面要加“/chat-messages”，比如“http://192.168.67.228:9997/v1/chat-messages”
 ![llm-account-dify.png](faq/llm-account-dify.png)
@@ -52,10 +56,11 @@
 ![dify-app-type.png](faq/dify-app-type.png)
 
 ### 4. 电话接通后没有声音
-排查方法：排查语音合成配置（呼叫管理->语音合成配置），检查设置的access key id、app key、access key secret是否正确，如果不确定可以重新设置一次试一下
+排查方法：排查语音合成配置（基础配置->语音合成配置），检查设置的access key id、app key、access key secret是否正确，如果不确定可以重新设置一次试一下
 ![tts-update.png](faq/tts-update.png)
 
 ### 5. 电话接通后听不到客户说的话
 排查方法：
-（1）检查参数管理（呼叫管理->参数管理）empty-number-detection-enabled 这个属性的值，请设置成false
-（2）检查语音识别配置（呼叫管理->语音识别配置），检查设置的access key id、app key、access key secret是否正确
+（1）检查参数管理（基础配置->参数管理）empty-number-detection-enabled 这个属性的值，请设置成false，该功能暂未实现不可开启
+（2）检查语音识别配置（基础配置->语音识别配置），检查设置的access key id、app key、access key secret是否正确
+![empty-number-detection-enabled.png](faq/empty-number-detection-enabled.png)
