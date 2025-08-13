@@ -1,10 +1,10 @@
 ## easycallcenter365常见问题及解决办法
 
-### 1. 通话30多秒后自动挂机
+### 通话30多秒后自动挂机
 如果使用的公有云服务器，注意以下2点。
-1. 修改 external 的 "对外sip监听地址"、"对外媒体监听地址"
-   为公网地址。
+1. 修改 external 的 "对外sip监听地址"、"对外媒体监听地址"为公网地址。
    然后重启FreeSWITCH： docker restart freeswitch-debian12
+   
 ![profile-menu.png](faq/profile-menu.png)
    
 ![profile-list.png](faq/profile-list.png)
@@ -16,7 +16,7 @@
     比如： 210.xx.xx.81:5080
 
 
-### 2. 启动外呼任务，没接到电话
+### 启动外呼任务，没接到电话
 排查方法：进入“AI外呼->外呼任务管理”和“AI外呼->AI外呼记录”两个页面，关注外呼任务列表的“任务类型”、“最大并发”、“总名单量”和“未拨打”列的值，和外呼记录列表的“外呼状态”列的值。
 ![calltask-list.png](faq/calltask-list.png)
 
@@ -44,7 +44,7 @@
 分析：电话打出去了，但是没打通，可能是线路欠费了，网络不通，设备不稳定，设备停机，线路封停等原因，注意：只要外呼记录列表有记录，就说明电话打出去了，就不是外呼系统的问题，请从网络、线路、网关设备上排查
 
 
-### 3. 电话接通后秒挂
+### 电话接通后秒挂
 排查方法：
 (1) 查看easycallcenter365的日志，日志路径:/home/easycallcenter365/logs/easycallcenter365.log
 (2) 如果日志没有报错，检查线路配置（基础配置->线路配置）、大模型配置（基础配置->大模型配置），如果是coze、dify或者maxkb，务必先通过文本测试后再接入
@@ -55,18 +55,18 @@
 注意2：如果是dify，应用类型请选择“聊天助手”或者“ChatFlow”，不要选择“Agent”
 ![dify-app-type.png](faq/dify-app-type.png)
 
-### 4. 电话接通后没有声音
+### 电话接通后没有声音
 排查方法：排查语音合成配置（基础配置->语音合成配置），检查设置的access key id、app key、access key secret是否正确，如果不确定可以重新设置一次试一下
 ![tts-update.png](faq/tts-update.png)
 
-### 5. 电话接通后听不到客户说的话
+### 电话接通后听不到客户说的话
 排查方法：
 （1）检查参数管理（基础配置->参数管理）empty-number-detection-enabled 这个属性的值，请设置成false，该功能暂未实现不可开启
 （2）检查语音识别配置（基础配置->语音识别配置），检查设置的access key id、app key、access key secret是否正确
 ![empty-number-detection-enabled.png](faq/empty-number-detection-enabled.png)
 
 
-### 6.如何设置分机相互拨打
+### 如何设置分机相互拨打
 
 默认没有开启分机相互拨打的路由，因为分机的调度是通过呼叫中心内部实现的。
 正常情况不需要设置，否则会影响呼叫中心的调度。
