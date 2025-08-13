@@ -118,11 +118,11 @@ div,select,textarea,table td,table td,table tr{font-family:myFirstFont;font-size
 .dial dd input,.dial dd ul{ float:left;}
 .dial dd ul{border:1px solid #dfe5e7; background:#FFF; border-radius:3px;  height:auto; width:118px; margin-left:2px;}
 .dial dd ul li{height:auto; line-height:23px; margin-left:10px; padding-left:16px;}
-.dial dd ul li.status1{ background:url(./images/li.png) no-repeat 0 0; color:#f39700;}
-.dial dd ul li.status2{ background:url(./images/li.png) no-repeat 0 -20px; color:#98bf40;}
-.dial dd ul li.status3{ background:url(./images/li.png) no-repeat 0 -40px; color:#98bf40;}
-.dial dd ul li.status4{ background:url(./images/li.png) no-repeat 0 -59px; color:#23a9f6;}
-.dial dd ul li.status5{ background:url(./images/li.png) no-repeat 0 -80px; color:#adadad;}
+.dial dd ul li.status1{ color:#f39700;}
+.dial dd ul li.status2{ color:#98bf40;}
+.dial dd ul li.status3{ color:#98bf40;}
+.dial dd ul li.status4{ color:#23a9f6;}
+.dial dd ul li.status5{ color:#adadad;}
 .dial dd b{ line-height:23px; padding-left:1px;}
 
 .dial_btn{ float:left;}
