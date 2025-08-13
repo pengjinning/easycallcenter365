@@ -39,7 +39,9 @@
 	（ <param name="odbc-dsn" value="mariadb://Server=127.0.0.1;Port=3306;Database=freeswitch;Uid=root;Pwd=easycallcenter365;" />）
 	vim /home/freeswitch/etc/freeswitch/sip_profiles/internal.xml
 	（ <param name="odbc-dsn" value="mariadb://Server=127.0.0.1;Port=3306;Database=freeswitch;Uid=root;Pwd=easycallcenter365;" />）	
-	
+	vim /home/freeswitch/share/freeswitch/scripts/auth_user.lua
+	（ local dbh = freeswitch.Dbh("mariadb://Server=127.0.0.1;Port=3306;Database=easycallcenter365;Uid=root;Pwd=easycallcenter365;")）
+
 	请注意：如果你的MySQL和FreeSWITCH不在同一台服务器上，请修改上面的 Server=127.0.0.1 为实际的IP地址。
 	这里的MySQL用户名和密码，如果和你的不一样， Uid=root;Pwd=easycallcenter365; 请修改为正确的值。
 	
