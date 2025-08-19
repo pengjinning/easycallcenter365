@@ -24,6 +24,10 @@
    bug反馈或者咨询问题请在gitee/github上，新建 Issue，并贴上日志。
 
   ![联系方式](wetchat.png) 
+  
+### 系统功能演示视频
+
+[系统使用及配置演示视频](https://mp.weixin.qq.com/s/05GIFKWtHt6EB0mxgL0BuA)
 
 ### 一键安装包
 

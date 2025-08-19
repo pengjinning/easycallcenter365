@@ -101,7 +101,7 @@ public class RobotChat extends RobotBase {
         AlibabaTokenEntity token = AliyunTTSWebApi.getToken();
         if(token != null) {
             logger.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",
-                    uuid, token.getToken(), token.getAppkey()
+                    uuid,  token.getToken().substring(0, 7) + "*******", token.getAppkey()
             );
             EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
             EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
