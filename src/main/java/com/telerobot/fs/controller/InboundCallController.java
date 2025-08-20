@@ -80,7 +80,7 @@ public class InboundCallController {
 		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
 			String tips = "Forbidden, only '127.0.0.1' is allowed.";
 			logger.error(tips);
-			//return  tips;
+			return  tips;
 		}
 
 		final String uuid = request.getParameter("uuid");

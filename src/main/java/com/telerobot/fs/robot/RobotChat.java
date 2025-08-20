@@ -119,7 +119,7 @@ public class RobotChat extends RobotBase {
         if (apiResponseMsg != null && apiResponseMsg.getBodyLines().size() != 0) {
             String apiResponseText = apiResponseMsg.getBodyLines().get(0);
             if ("false".equalsIgnoreCase(apiResponseText)) {
-                logger.info("{} session is hangup，stop robot process.", getTraceId());
+                logger.info("{} session is hangup, try to stop robot process.", getTraceId());
                 this.processFsMsg(this.generateHangupEvent("hangup-before-robot-process"));
                 return;
             }
@@ -425,7 +425,7 @@ public class RobotChat extends RobotBase {
 
             try {
                 String question = asrStr.toString();
-                if(StringUtils.isEmpty(question)) {
+                if (StringUtils.isEmpty(question)) {
                     int counter = noVoiceCounter.incrementAndGet();
                     if (counter > 3) {
                         chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
@@ -438,50 +438,61 @@ public class RobotChat extends RobotBase {
                 }
                 logger.info("{} send question to chatRobot: {}", getTraceId(), question);
                 aiphoneRes = chatRobot.talkWithAiAgent(question);
-                if(aiphoneRes == null){
-                    hangupAndCloseConn();
-                    return;
+                while ((aiphoneRes == null || aiphoneRes.getStatus_code() == 0)
+                        && Llm_max_try_counter.get() < LLM_MAX_TRY) {
+                    logger.error("{} llm api error, retry to send question to chatRobot: {}", getTraceId(), question);
+                    aiphoneRes = chatRobot.talkWithAiAgent(question);
+                    Llm_max_try_counter.incrementAndGet();
                 }
+
+                if (aiphoneRes == null || aiphoneRes.getStatus_code() == 0) {
+                    String tips = SystemConfig.getValue("llm-max-try-fail-tips", "");
+                    if (!StringUtils.isEmpty(tips)) {
+                        chatRobot.sendTtsRequest(tips);
+                        chatRobot.closeTts();
+                    } else {
+                        hangupAndCloseConn();
+                        return;
+                    }
+                }
+
                 talkRound.increment();
                 Long spentCost = System.currentTimeMillis() - startTime;
                 logger.info("{}  talkWithLargeModel spent time:  {}  ms, aiphoneRes = {}",
                         getTraceId(), spentCost, JSON.toJSONString(aiphoneRes)
                 );
 
-                /*
-                aiphoneRes = new  LlmAiphoneRes();
-                aiphoneRes.setStatus_code(1);
-                aiphoneRes.setClose_phone(0);
-                aiphoneRes.setIfcan_interrupt(0);
-                aiphoneRes.setJsonResponse(true);
-                aiphoneRes.setBody("{\n" +
-                        "    \"tool\": \"transfer_to_agent\",\n" +
-                        "    \"arguments\": {}\n" +
-                        "}");
-                 */
+                if( aiphoneRes.getStatus_code() == 1) {
 
-                if(aiphoneRes.isJsonResponse()){
-                    LlmToolRequest toolRequest = null;
-                    try {
-                        toolRequest = JSON.parseObject(
-                                aiphoneRes.getBody(), LlmToolRequest.class);
-                    }catch (Throwable t){
-                        logger.warn("{} An exception was returned by the large model and the JSON could not be parsed "+
-                                " — the program will handle this case with special processing.", getTraceId());
-                        toolRequest = new LlmToolRequest();
-
-                        if( aiphoneRes.getBody() != null){
-                            if(aiphoneRes.getBody().contains(LlmToolRequest.TRANSFER_TO_AGENT)){
-                                toolRequest.setTool(LlmToolRequest.TRANSFER_TO_AGENT);
-                            }
-                            if(aiphoneRes.getBody().contains(LlmToolRequest.HANGUP)){
-                                toolRequest.setTool(LlmToolRequest.HANGUP);
-                            }
-                            toolRequest.setContent(null);
+                    LlmToolRequest toolRequest = new LlmToolRequest();
+                    toolRequest.setTool("");
+                    if (aiphoneRes.isJsonResponse()) {
+                        try {
+                            toolRequest = JSON.parseObject(
+                                    aiphoneRes.getBody(), LlmToolRequest.class);
+                        } catch (Throwable t) {
+                            logger.warn("{} An exception was returned by the large model and the JSON could not be parsed " +
+                                    " — the program will handle this case with special processing.", getTraceId());
                         }
                     }
 
-                    if(toolRequest.getTool().equals(LlmToolRequest.TRANSFER_TO_AGENT)) {
+                    if (aiphoneRes.getBody() != null) {
+                        if (aiphoneRes.getBody().contains(LlmToolRequest.TRANSFER_TO_AGENT)) {
+                            toolRequest.setTool(LlmToolRequest.TRANSFER_TO_AGENT);
+                            if (!aiphoneRes.isJsonResponse()) {
+                                interruptRobotSpeech();
+                            }
+                        }
+                        if (aiphoneRes.getBody().contains(LlmToolRequest.HANGUP)) {
+                            toolRequest.setTool(LlmToolRequest.HANGUP);
+                            if (!aiphoneRes.isJsonResponse()) {
+                                interruptRobotSpeech();
+                            }
+                        }
+                        toolRequest.setContent(null);
+                    }
+
+                    if (toolRequest.getTool().equals(LlmToolRequest.TRANSFER_TO_AGENT)) {
                         transferToAgent = true;
                         InboundDetail callDetailNew = new InboundDetail(
                                 UuidGenerator.GetOneUuid(),
@@ -509,7 +520,7 @@ public class RobotChat extends RobotBase {
                         return;
                     }
 
-                    if(toolRequest.getTool().equals(LlmToolRequest.HANGUP)) {
+                    if (toolRequest.getTool().equals(LlmToolRequest.HANGUP)) {
                         if (StringUtils.isNotBlank(toolRequest.getContent())) {
                             chatRobot.sendTtsRequest(toolRequest.getContent());
                         } else {
@@ -537,19 +548,14 @@ public class RobotChat extends RobotBase {
             logger.info("{} allowSpeechInterrupt={}", getTraceId(), 1);
         }
 
-        // 设置 moveCode
-        // interactiveParam.getRobotParam().setCallCode(responseObj.getString("callCode")) ;
         if (!interactiveParam.checkInHangupState()) {
-            // code状态码000000代表返回成功的结果
-            if (aiphoneRes.getStatus_code() == 1) {
-                if (aiphoneRes.getClose_phone() == 1) {
-                    logger.info(getTraceId() + " hangup signal is detected. ");
-                    interactiveParam.setInHangUpState(true);
-                     recvHangupSignal = true;
-                }else{
-                    acquireAllPermits();
-                    waitForCustomerSpeakEx();
-                }
+            if (aiphoneRes.getClose_phone() == 1) {
+                logger.info(getTraceId() + " hangup signal is detected. ");
+                interactiveParam.setInHangUpState(true);
+                recvHangupSignal = true;
+            } else {
+                acquireAllPermits();
+                waitForCustomerSpeakEx();
             }
         }
     }

@@ -14,6 +14,7 @@ import okhttp3.Response;
 import okio.BufferedSource;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.http.HttpStatus;
 
 import java.io.IOException;
 
@@ -59,8 +60,13 @@ public class Dify extends AbstractChatRobot {
         if(!firstRound && !StringUtils.isEmpty(question)) {
             try {
                 JSONObject response = sendStreamingRequest(aiphoneRes, question);
-                llmRoundMessages.add(response);
+                if(null != response) {
+                    llmRoundMessages.add(response);
+                }else{
+                    aiphoneRes.setStatus_code(0);
+                }
             } catch (Throwable throwable) {
+                aiphoneRes.setStatus_code(0);
                 logger.error("{} talkWith Dify error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
             }
         }
@@ -105,7 +111,11 @@ public class Dify extends AbstractChatRobot {
                         response.message(),
                         getAccount().serverUrl
                 );
-                throw new IOException("Unexpected code " + response);
+                if(response.code() == HttpStatus.SC_UNAUTHORIZED || response.code() >= HttpStatus.SC_INTERNAL_SERVER_ERROR) {
+                    throw new IOException("Unexpected code " + response);
+                }else{
+                    return null;
+                }
             }
 
             BufferedSource source = response.body().source();

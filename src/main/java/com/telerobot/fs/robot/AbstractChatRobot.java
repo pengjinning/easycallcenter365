@@ -7,6 +7,7 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -33,9 +34,12 @@ public abstract class AbstractChatRobot implements IChatRobot {
 
     protected String ttsVoiceName = "";
 
+    private static int requestTimeout = Integer.parseInt(SystemConfig.getValue("llm-conn-timeout", "3100"));
+
     protected static final OkHttpClient CLIENT =  new OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(requestTimeout,
+                    TimeUnit.MILLISECONDS)
+            .readTimeout(requestTimeout, TimeUnit.MILLISECONDS)
             .build();
 
     protected String uuid;

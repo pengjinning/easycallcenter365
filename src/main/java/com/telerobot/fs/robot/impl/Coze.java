@@ -139,6 +139,7 @@ public class Coze  extends AbstractChatRobot {
                 JSONObject response = sendStreamingRequest(aiphoneRes, question, getToken());
                 llmRoundMessages.add(response);
             } catch (Throwable throwable) {
+                aiphoneRes.setStatus_code(0);
                 logger.error("{} talkWithAiAgent error: {} {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
                 return null;
             }
@@ -231,6 +232,7 @@ public class Coze  extends AbstractChatRobot {
                             System.err.println(": " + throwable.getMessage());
                             logger.error("{} coze error occurred {} {}", uuid, throwable.toString(),
                                     CommonUtils.getStackTraceString(throwable.getStackTrace()));
+                            aiphoneRes.setStatus_code(0);
                             release();
                         },
                         () -> {

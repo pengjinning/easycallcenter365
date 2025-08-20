@@ -34,6 +34,9 @@ public abstract class RobotBase implements IEslEventListener {
     public static final  String NO_VOICE = "NO_VOICE";
     protected AtomicInteger noVoiceCounter = new AtomicInteger(0);
 
+    protected static int LLM_MAX_TRY = Integer.parseInt(SystemConfig.getValue("llm-max-try", "2"));
+    protected AtomicInteger Llm_max_try_counter = new AtomicInteger(0);
+
     /**
      *  交互轮次;
      */
