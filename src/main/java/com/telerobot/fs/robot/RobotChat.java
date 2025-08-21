@@ -444,6 +444,7 @@ public class RobotChat extends RobotBase {
                     aiphoneRes = chatRobot.talkWithAiAgent(question);
                     Llm_max_try_counter.incrementAndGet();
                 }
+                Llm_max_try_counter.set(0);
 
                 if (aiphoneRes == null || aiphoneRes.getStatus_code() == 0) {
                     String tips = SystemConfig.getValue("llm-max-try-fail-tips", "");
