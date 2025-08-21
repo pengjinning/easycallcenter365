@@ -79,3 +79,18 @@
 * 下载文件[default.xml](https://gitee.com/easycallcenter365/freeswitch-modules-libs/blob/master/FreeSWITCH-Config-Files/conf/dialplan/default.xml) ， 并上传到 `/home/freeswitch/etc/freeswitch/dialplan` 目录下。
 * 刷新`FreeSWITCH`配置： docker exec -it freeswitch-debian12 /usr/local/freeswitchvideo/bin/fs_cli -x reloadxml
 
+### 如何升级到最新版v20250817
+
+1.  下载二进制文件。 下载地址: 
+https://pan.baidu.com/s/1xFgMPCu0VKHKnG69QhyTlA 提取码: etv5 
+
+2. 用网盘最新的 easycallcenter365.jar、easycallcenter365-gui.jar 替换掉
+服务器上 /home/easycallcenter365/ 下面的文件。
+
+3.  下载网盘中的 upgrade/to_v20250817/upgrade.sql
+   然后打开数据库执行即可。
+   
+4. 重启程序 cd /home/easycallcenter365/ && sh stop.sh  && sh start.sh
+     
+
+
