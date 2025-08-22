@@ -11,9 +11,9 @@
 	  
     <script type="text/javascript">
         var _phoneBar = new ccPhoneBarSocket();
-        var scriptServer = "8.153.92.191";
-        var  extnum = '1018'; //分机号
-        var opnum = '1018'; //工号
+        var scriptServer = "192.168.67.218";
+        var  extnum = '1001'; //分机号
+        var opnum = '1001'; //工号
         var skillLevel = 9; //技能等级
         var groupId = 1; // 业务组id
         if(window.location.href.toString().indexOf("?") != -1){
@@ -240,9 +240,9 @@ window.onload = function(){
         'gatewayList': [
             {
                 uuid: '01',   // 网关唯一编号;
-                updateTime: 1892622572983,  //网关信息更新时间, 每次修改必须更新这个字段，否则配置无法生效;
-                gatewayAddr: '10.255.240.4:5030;outbound',  // 网关地址或名称，  如果是注册模式： 网关地址参数则填写为网关名称;
-                callerNumber: '055164901409',                 //主叫号码
+                updateTime: 1992622572983,  //网关信息更新时间, 每次修改必须更新这个字段，否则配置无法生效;
+                gatewayAddr: '192.168.67.219',  // 网关地址或名称，  如果是注册模式： 网关地址参数则填写为网关名称;
+                callerNumber: '007',                 //主叫号码
                 calleePrefix: '',                    // 被叫前缀
                 priority: 2,                         //优先级，数字越小，越优先被使用;
                 concurrency: 20,                    // 网关并发数，同时支持呼叫数;
