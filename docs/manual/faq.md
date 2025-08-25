@@ -78,6 +78,7 @@
 * 删除文件: rm -rf default.xml 
 * 下载文件[default.xml](https://gitee.com/easycallcenter365/freeswitch-modules-libs/blob/master/FreeSWITCH-Config-Files/conf/dialplan/default.xml) ， 并上传到 `/home/freeswitch/etc/freeswitch/dialplan` 目录下。
 * 刷新`FreeSWITCH`配置： docker exec -it freeswitch-debian12 /usr/local/freeswitchvideo/bin/fs_cli -x reloadxml
+* 软电话注册到 5060 端口。接下来就可以进行分机互打测试了。
 
 ### 如何升级到最新版v20250817
 
