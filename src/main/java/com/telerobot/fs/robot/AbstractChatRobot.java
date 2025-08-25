@@ -144,6 +144,15 @@ public abstract class AbstractChatRobot implements IChatRobot {
     }
 
     protected  void addDialogue(String role, String content){
+        // 避免重试时重复记录
+        if (llmRoundMessages.size() > 0) {
+            JSONObject lastMessage = llmRoundMessages.get(llmRoundMessages.size() - 1);
+            if (role.equals(lastMessage.getString("role"))
+                    && StringUtils.isNotBlank(content)
+                    && content.equals(lastMessage.getString("content"))) {
+                return;
+            }
+        }
         JSONObject userMessage = new JSONObject();
         userMessage.put("role",  role);
         userMessage.put("content",  content);
