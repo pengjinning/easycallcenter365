@@ -15,6 +15,7 @@ import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
 import com.telerobot.fs.utils.CommonUtils;
+import com.telerobot.fs.utils.ThreadUtil;
 import io.netty.util.internal.StringUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
@@ -193,6 +194,7 @@ public class RobotChat extends RobotBase {
            if("Speech-Closed".equalsIgnoreCase(event)){
                chatRobot.setTtsChannelState(true);
                logger.info("{}  TtsChannelClosed = true.", getTraceId());
+               ttsChannelClosed = true;
            }
         }
         else if ("CUSTOM".equalsIgnoreCase(eventName) && (
@@ -465,35 +467,18 @@ public class RobotChat extends RobotBase {
 
                 if( aiphoneRes.getStatus_code() == 1) {
 
-                    LlmToolRequest toolRequest = new LlmToolRequest();
-                    toolRequest.setTool("");
-                    if (aiphoneRes.isJsonResponse()) {
-                        try {
-                            toolRequest = JSON.parseObject(
-                                    aiphoneRes.getBody(), LlmToolRequest.class);
-                        } catch (Throwable t) {
-                            logger.warn("{} An exception was returned by the large model and the JSON could not be parsed " +
-                                    " — the program will handle this case with special processing.", getTraceId());
+                    ttsChannelClosed = false;
+                    String body = aiphoneRes.getBody();
+                    if(!StringUtils.isEmpty(body)){
+                        if(body.contains(LlmToolRequest.TRANSFER_TO_AGENT)){
+                            aiphoneRes.setTransferToAgent(1);
+                        }
+                        if(body.contains(LlmToolRequest.HANGUP)){
+                            aiphoneRes.setClose_phone(1);
                         }
                     }
 
-                    if (aiphoneRes.getBody() != null) {
-                        if (aiphoneRes.getBody().contains(LlmToolRequest.TRANSFER_TO_AGENT)) {
-                            toolRequest.setTool(LlmToolRequest.TRANSFER_TO_AGENT);
-                            if (!aiphoneRes.isJsonResponse()) {
-                                interruptRobotSpeech();
-                            }
-                        }
-                        if (aiphoneRes.getBody().contains(LlmToolRequest.HANGUP)) {
-                            toolRequest.setTool(LlmToolRequest.HANGUP);
-                            if (!aiphoneRes.isJsonResponse()) {
-                                interruptRobotSpeech();
-                            }
-                        }
-                        toolRequest.setContent(null);
-                    }
-
-                    if (toolRequest.getTool().equals(LlmToolRequest.TRANSFER_TO_AGENT)) {
+                    if (aiphoneRes.getTransferToAgent() == 1) {
                         transferToAgent = true;
                         InboundDetail callDetailNew = new InboundDetail(
                                 UuidGenerator.GetOneUuid(),
@@ -507,29 +492,37 @@ public class RobotChat extends RobotBase {
                                 callDetail.getOutboundPhoneInfo()
                         );
                         logger.info("{} stop_asr process.", uuid);
-                        chatRobot.sendTtsRequest(chatRobot.getAccount().transferToAgentTips);
+                        if(StringUtils.isEmpty(body)){
+                            chatRobot.sendTtsRequest(chatRobot.getAccount().transferToAgentTips);
+                        }
                         chatRobot.closeTts();
                         // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
                         EslConnectionUtil.sendExecuteCommand("stop_asr", "", uuid);
                         acquireAllPermits();
                         acquire(5000);
                         // wait for tips playback finished
+                        while (!ttsChannelClosed && !isHangup) {
+                            ThreadUtil.sleep(1000);
+                        }
 
-                        this.processFsMsg(this.generateHangupEvent("transferToAgent"));
-                        AppContextProvider.getBean(InboundDetailService.class).insertInbound(callDetailNew);
-                        TransferToAgent.transfer(callDetailNew);
+                        if(!isHangup) {
+                            this.processFsMsg(this.generateHangupEvent("transferToAgent"));
+                            AppContextProvider.getBean(InboundDetailService.class).insertInbound(callDetailNew);
+                            TransferToAgent.transfer(callDetailNew);
+                        }
                         return;
                     }
 
-                    if (toolRequest.getTool().equals(LlmToolRequest.HANGUP)) {
-                        if (StringUtils.isNotBlank(toolRequest.getContent())) {
-                            chatRobot.sendTtsRequest(toolRequest.getContent());
-                        } else {
+                    if (aiphoneRes.getClose_phone() == 1) {
+                        if(StringUtils.isEmpty(body)){
                             chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
                         }
                         chatRobot.closeTts();
                         acquireAllPermits();
                         acquire(9000);
+                        while (!ttsChannelClosed && !isHangup) {
+                            ThreadUtil.sleep(1000);
+                        }
                         hangupAndCloseConn();
                         return;
                     }

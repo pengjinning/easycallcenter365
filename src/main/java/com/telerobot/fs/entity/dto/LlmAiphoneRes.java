@@ -16,6 +16,11 @@ public class LlmAiphoneRes {
     private Integer close_phone = 0;
 
     /**
+     *  transfer to agent flag
+     */
+    private Integer transferToAgent = 0;
+
+    /**
      *  是否可以被打断：0-不能被打断；1-可以被打断
      */
     private Integer ifcan_interrupt = 0;
