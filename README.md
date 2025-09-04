@@ -23,7 +23,7 @@
 
    bug反馈或者咨询问题请在gitee/github上，新建 Issue，并贴上日志。
 
-  ![联系方式](docs/images/wetchat2.png) 
+  ![联系方式](/docs/images/wetchat2.png) 
   
 ### 系统功能演示视频
 
