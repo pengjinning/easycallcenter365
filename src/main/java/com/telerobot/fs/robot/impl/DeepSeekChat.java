@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.LlmAccount;
+import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.robot.AbstractChatRobot;
 import com.telerobot.fs.utils.CommonUtils;
 import okhttp3.MediaType;
@@ -98,7 +99,6 @@ public class DeepSeekChat extends AbstractChatRobot {
                 .build();
 
         boolean recvData = false;
-        boolean jsonFormat = false;
         long startTime = System.currentTimeMillis();
 
         try (Response response = CLIENT.newCall(request).execute()) {
@@ -143,14 +143,21 @@ public class DeepSeekChat extends AbstractChatRobot {
                         }
 
                         if (!StringUtils.isEmpty(speechContent)) {
-                            //  send to tts server
-                            if (speechContent.startsWith("{") && !jsonFormat) {
-                                logger.info("{} json response detected.", getTraceId());
-                                jsonFormat = true;
-                                aiphoneRes.setJsonResponse(true);
+
+                            if (speechContent.contains(LlmToolRequest.TRANSFER_TO_AGENT)) {
+                                aiphoneRes.setTransferToAgent(1);
+                                logger.info("{} `TRANSFER_TO_AGENT` command detected. ", getTraceId());
                             }
 
-                            if (!StringUtils.isEmpty(speechContent) && !jsonFormat) {
+                            if (speechContent.contains(LlmToolRequest.HANGUP)) {
+                                aiphoneRes.setClose_phone(1);
+                                logger.info("{} `HANGUP` command detected. ", getTraceId());
+                            }
+
+                            if (!StringUtils.isEmpty(speechContent)) {
+                                speechContent = speechContent.replace(LlmToolRequest.TRANSFER_TO_AGENT,"")
+                                        .replace(LlmToolRequest.HANGUP,"")
+                                        .replace("`","");
                                 ttsTextCache.add(speechContent);
                                 ttsTextLength += speechContent.length();
                                 // 积攒足够的字数之后，才发送给tts，避免播放异常;
@@ -166,7 +173,7 @@ public class DeepSeekChat extends AbstractChatRobot {
 
             String answer = responseBuilder.toString();
             logger.info("{} recv llm response end flag. answer={}", this.uuid, answer);
-            if(ttsTextLength > 0 && !jsonFormat){
+            if(ttsTextLength > 0){
                 sendToTts();
             }
             closeTts();

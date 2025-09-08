@@ -150,6 +150,9 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
     public void processFsMsg(Map<String, String> headers) {
         String eventName = headers.get("Event-Name");
         String uniqueId = headers.get("Unique-ID");
+		if(StringUtils.isNullOrEmpty(uniqueId)){
+			return;			
+		}
         AsrEntity asrEntity = asrInfoContainer.get(uniqueId);
         if (null == asrEntity) {
             return;

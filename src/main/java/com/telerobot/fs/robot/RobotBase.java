@@ -165,6 +165,8 @@ public abstract class RobotBase implements IEslEventListener {
      **/
     protected  volatile  boolean isHangup = false;
 
+    protected volatile boolean ttsChannelClosed = false;
+
 
     public boolean getHangup() {
         return isHangup;

@@ -11,3 +11,4 @@ update cc_params set param_value='true' where param_code='fs_call_asr_enabled';
 UPDATE sys_config SET config_value = 'v20250823' WHERE config_key = 'sys.version';
 
 
+ALTER TABLE cc_cust_call_record MODIFY COLUMN UUID VARCHAR(128) DEFAULT '' COMMENT 'uuid';
