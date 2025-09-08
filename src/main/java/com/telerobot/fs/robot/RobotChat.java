@@ -472,9 +472,11 @@ public class RobotChat extends RobotBase {
                     if(!StringUtils.isEmpty(body)){
                         if(body.contains(LlmToolRequest.TRANSFER_TO_AGENT)){
                             aiphoneRes.setTransferToAgent(1);
+                            body = body.replace(LlmToolRequest.TRANSFER_TO_AGENT, "");
                         }
                         if(body.contains(LlmToolRequest.HANGUP)){
                             aiphoneRes.setClose_phone(1);
+                            body = body.replace(LlmToolRequest.HANGUP, "");
                         }
                     }
 

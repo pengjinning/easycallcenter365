@@ -6,6 +6,7 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
@@ -109,6 +110,8 @@ public abstract class AbstractChatRobot implements IChatRobot {
             return;
         }
         String text = textParam
+                .replace(LlmToolRequest.TRANSFER_TO_AGENT, "")
+                .replace(LlmToolRequest.HANGUP, "")
                 .replace("\\", "")
                 .replace("*", " ")
                 .replace("\n", " ");

@@ -4,7 +4,11 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 
+import java.util.concurrent.Semaphore;
+
 public interface IChatRobot {
+
+    Semaphore concurrentNum = new Semaphore(0);
 
     /**
      * Account parameter information for accessing the large model or ai-agent
