@@ -105,9 +105,11 @@ public class BatchTaskManager implements Runnable {
 		log.info(getTraceId() + " start outbound task.");
         phoneNumberContainer = GetPhones();
         if (phoneNumberContainer == null || phoneNumberContainer.size() == 0) {
-            log.info(getTraceId() + " no available phone numbers, task stopped.");
-            this.finishedFlag = true;
-            return;
+            if(currentBatchEntity.getAutoStop() == 1) {
+                log.info(getTraceId() + " no available phone numbers, task stopped.");
+                this.finishedFlag = true;
+                return;
+            }
         }
         doCallOut();
 	}
@@ -188,6 +190,10 @@ public class BatchTaskManager implements Runnable {
             }
             this.llmAccount.voiceSource = batchEntity.getVoiceSource();
             this.llmAccount.voiceCode = batchEntity.getVoiceCode();
+
+            llmAccount.asrProvider = batchEntity.getAsrProvider();
+            llmAccount.aiTransferType = batchEntity.getAiTransferType();
+            llmAccount.aiTransferData = batchEntity.getAiTransferData();
         }
 
         if(preventRepeatRunTask()){
@@ -483,21 +489,26 @@ public class BatchTaskManager implements Runnable {
     private void callOut() {
         CustmInfoEntity phoneNumEntity = GetOnePhoneNum();
         if (phoneNumEntity == null) {
-            if (!finishedFlag) {
-                finishedFlag = true;
+            if(currentBatchEntity.getAutoStop() == 1) {
+                log.info("{} There is no phone numbers left in database, task will auto stop.", getTraceId());
+                if (!finishedFlag) {
+                    finishedFlag = true;
+                }
+            }else{
+                log.info("{} There is no phone numbers left in database, task auto_stop=0. Resume waiting.", getTraceId());
             }
             releaseThreadNum();
-            return;
-        }
-        phoneNumEntity.setBatchId(this.batchId);
-        try {
-            callTaskThreadPool.execute(new CallTask(this, phoneNumEntity, currentBatchEntity));
-        } catch (Exception e) {
-            log.error("{} An error occurred while adding the outbound task to the thread pool ! {} {} ",
-                    getTraceId(),
-                    e.toString(),
-                    CommonUtils.getStackTraceString(e.getStackTrace())
-            );
+        }else {
+            phoneNumEntity.setBatchId(this.batchId);
+            try {
+                callTaskThreadPool.execute(new CallTask(this, phoneNumEntity, currentBatchEntity));
+            } catch (Exception e) {
+                log.error("{} An error occurred while adding the outbound task to the thread pool ! {} {} ",
+                        getTraceId(),
+                        e.toString(),
+                        CommonUtils.getStackTraceString(e.getStackTrace())
+                );
+            }
         }
     }
 
@@ -601,6 +612,7 @@ public class BatchTaskManager implements Runnable {
             currentBatchEntity.setIfcall(ret.getIfcall());
             currentBatchEntity.setGroupId(ret.getGroupId());
             currentBatchEntity.setThreadNum(ret.getThreadNum());
+            currentBatchEntity.setAutoStop(ret.getAutoStop());
 
             if (ret.getIfcall() == 0)  {
             	log.info(getTraceId() + " Outbound calling task is currently paused by user.");

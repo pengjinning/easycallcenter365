@@ -12,13 +12,11 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dao.CallTaskEntity;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.entity.dto.EmptyNumberDetectionConfig;
+import com.telerobot.fs.ivr.IvrEngine;
 import com.telerobot.fs.outbound.CallConfig;
 import com.telerobot.fs.robot.RobotChat;
 import com.telerobot.fs.tts.TtsUtil;
-import com.telerobot.fs.utils.CommonUtils;
-import com.telerobot.fs.utils.DateUtils;
-import com.telerobot.fs.utils.ThreadPoolCreator;
-import com.telerobot.fs.utils.ThreadUtil;
+import com.telerobot.fs.utils.*;
 import link.thingscloud.freeswitch.esl.EslConnectionPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
@@ -357,6 +355,9 @@ public class CallTask implements Runnable {
 					EslConnectionUtil.sendExecuteCommand("start_empty_number_detection",  "hello", uniqueID);
 				}
 			}else  if (EventNames.CUSTOM.equalsIgnoreCase(eventName)) {
+				if(phoneInfo.getConnectedTime() > 1){
+					return;
+				}
 				String eventSubClass = headers.get("Event-Subclass");
 				String asrEventDetail = headers.get("ASR-Event-Detail");
 				String text = headers.get("Detect-Speech-Result");
@@ -431,14 +432,7 @@ public class CallTask implements Runnable {
 					phoneInfo.setCallstatus(4);
 					ScheduledScanTask.addToSQLQueue(phoneInfo);
 
-					String recordingsDir = SystemConfig.getValue("recording_path", "/home/Records/");
-					String fullRecordPath = String.format("%s%s",
-							recordingsDir,
-							wavFile
-					);
-					log.info("{} start to record session: {}", getTraceId(), fullRecordPath);
-					EslConnectionUtil.sendExecuteCommand("record_session", fullRecordPath, uniqueID, eslConnectionPool);
-
+                    RecordingsUtil.startRecordings(wavFile, uniqueID);
 
 					InboundDetail inboundDetail = new InboundDetail(
 							callUuid,
@@ -468,11 +462,12 @@ public class CallTask implements Runnable {
 					}else if (batchEntity.getTaskType() == CallConfig.CALL_TYPE_PURE_AI_OUTBOUND_CALL) {
 						// transfer to robot
 						RobotChat robotChat = new RobotChat(inboundDetail, batchMonitor.getLlmAccount());
+						phoneInfo.setCallCenterRegisterListener(true);
 						if (!robotChat.getHangup()) {
 							robotConversationTaskThreadPool.execute(new Runnable() {
 								@Override
 								public void run() {
-									robotChat.startProcess(callUuid, "");
+									robotChat.startProcess(callUuid);
 								}
 							});
 						}
@@ -481,6 +476,19 @@ public class CallTask implements Runnable {
 						phoneInfo.setCallstatus(6);
 						voiceCallPlayBackCounter ++;
 						playbackWavFile();
+					}else if(batchEntity.getTaskType() == CallConfig.CALL_TYPE_IVR_VOICE){
+						String ivrPlanId = batchEntity.getIvrId();
+						if(!StringUtils.isEmpty(ivrPlanId)) {
+							robotConversationTaskThreadPool.execute(new Runnable() {
+								@Override
+								public void run() {
+                                    log.info("{} start startIvrSession for call session. ", getTraceId());
+									AppContextProvider.getBean(IvrEngine.class).startIvrSession(inboundDetail, ivrPlanId);
+								}
+							});
+						}else{
+							log.info("{} cant not startIvrSession for call session, ivrPlanId is null or empty. ", getTraceId());
+						}
 					}
 				} catch (Exception e) {
 					log.error("{} The call will be forcibly terminated due to a failed transfer to the robot. {} {}", getTraceId(),
@@ -639,8 +647,13 @@ public class CallTask implements Runnable {
 				caller,
 				caller
 		));
-		String callParameter = String.format("{%s}sofia/%s/%s%s@%s  &park()",
+
+		String extraParams = SystemConfig.getValue("outbound-call-extra-params-for-profile-"+ batchEntity.getProfileName() , "");
+		String extraParamsFinal =  extraParams.length() == 0 ? "" :   "," + extraParams ;
+
+		String callParameter = String.format("{%s%s}sofia/%s/%s%s@%s  &park()",
 				callPrefix.toString(),
+				extraParamsFinal,
 				batchEntity.getProfileName(),
 				batchEntity.getCalleePrefix(),
 				callee,

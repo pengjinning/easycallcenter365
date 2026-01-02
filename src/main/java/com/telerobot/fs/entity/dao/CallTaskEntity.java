@@ -10,7 +10,7 @@ public class CallTaskEntity {
 	private int batchId;
 	private String groupId;
 	private String batchName;
-	private int ifcall;
+	private volatile int ifcall;
 	private double rate	;
 	private int threadNum;
 	private long createtime;
@@ -42,6 +42,18 @@ public class CallTaskEntity {
 	private String voiceCode;
 	private String voiceSource;
 
+	private String asrProvider;
+
+	/**
+	 * way of transferring to manual:  acd、extension、gateway
+	 */
+	private String aiTransferType;
+
+	/**
+	 *  Data of specific manual transfer methods
+	 */
+	private String aiTransferData;
+
 	/**
 	 * The average ringing duration of the call
 	 */
@@ -58,6 +70,13 @@ public class CallTaskEntity {
 	private double avgCallEndProcessTimeLen;
 
 	private int llmAccountId;
+
+	/**
+	 *  auto stop task if there are no phone numbers.
+	 */
+	private volatile int autoStop;
+
+	private String ivrId;
 
 	public int getBatchId() {
 		return batchId;
@@ -265,5 +284,45 @@ public class CallTaskEntity {
 
 	public void setPlayTimes(int playTimes) {
 		this.playTimes = playTimes;
+	}
+
+	public String getAsrProvider() {
+		return asrProvider;
+	}
+
+	public void setAsrProvider(String asrProvider) {
+		this.asrProvider = asrProvider;
+	}
+
+	public String getAiTransferType() {
+		return aiTransferType;
+	}
+
+	public void setAiTransferType(String aiTransferType) {
+		this.aiTransferType = aiTransferType;
+	}
+
+	public String getAiTransferData() {
+		return aiTransferData;
+	}
+
+	public void setAiTransferData(String aiTransferData) {
+		this.aiTransferData = aiTransferData;
+	}
+
+	public int getAutoStop() {
+		return autoStop;
+	}
+
+	public void setAutoStop(int autoStop) {
+		this.autoStop = autoStop;
+	}
+
+	public String getIvrId() {
+		return ivrId;
+	}
+
+	public void setIvrId(String ivrId) {
+		this.ivrId = ivrId;
 	}
 }

@@ -75,7 +75,7 @@ public class RegExp {
 		util.setMaxLen(20);
 		util.setMinLen(6);
 		util.setNotNull(true);
-		util.setPattern("^[1-9]\\d{5,19}$");
+		util.setPattern("^\\d{3,19}$");
 		String fieldName = "mobile";
 		if (fieldNameArgs != null && fieldNameArgs.length != 0) {
 			fieldName = fieldNameArgs[0];
@@ -133,6 +133,33 @@ public class RegExp {
 		util.setMinLen(1);
 		util.setNotNull(isRequired);
 		util.setPattern("^[1-9]\\d{0,20}$");
+		String fieldName = "id";
+		if (fieldNameArgs != null && fieldNameArgs.length != 0) {
+			fieldName = fieldNameArgs[0];
+		}
+		return util.validate(fieldName, checkValue);
+	}
+
+	/**
+	 *  Verify whether the input number (combination) is valid.
+	 * @param isRequired
+	 * @param maxLen
+	 * @param minLen
+	 * @param checkValue
+	 * @param fieldNameArgs
+	 * @return
+	 */
+	public static MessageResponse checkDigits(Boolean isRequired,
+											 int maxLen,
+											 int minLen,
+											 String regExp,
+											 String checkValue,
+											 String... fieldNameArgs) {
+		ValidatorUtil util = new ValidatorUtil();
+		util.setMaxLen(maxLen);
+		util.setMinLen(minLen);
+		util.setNotNull(isRequired);
+		util.setPattern(regExp);
 		String fieldName = "id";
 		if (fieldNameArgs != null && fieldNameArgs.length != 0) {
 			fieldName = fieldNameArgs[0];

@@ -7,18 +7,17 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundBlack;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.bo.LlmConsumer;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
 import com.telerobot.fs.entity.dto.InboundConfig;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.robot.LlmThreadManager;
 import com.telerobot.fs.robot.RobotChat;
 import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.service.InboundBlackService;
 import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.service.LlmAccountParser;
-import com.telerobot.fs.utils.DateUtils;
-import com.telerobot.fs.utils.StringUtils;
-import com.telerobot.fs.utils.ThreadPoolCreator;
-import com.telerobot.fs.utils.ThreadUtil;
+import com.telerobot.fs.utils.*;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +63,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class InboundCallController {
 	private static final Logger logger = LoggerFactory.getLogger(InboundCallController.class);
 	private static int inboundCallThreadPoolSize = Integer.parseInt(
-			SystemConfig.getValue("max-call-concurrency", "100")
+			SystemConfig.getValue("max-call-concurrency", "200")
 	);
     private  static ThreadPoolExecutor mainThreadPool = ThreadPoolCreator.create(
 			inboundCallThreadPoolSize,
@@ -115,7 +114,6 @@ public class InboundCallController {
 						// 查询黑名单
 						InboundBlack inboundBlack = AppContextProvider.getBean(InboundBlackService.class).getInboundBlackByCaller(caller);
                         if(null == inboundBlack) {
-
 							InboundConfig inboundConfig  =
 							              AppContextProvider.getBean(InboundDetailService.class).getInboundConfigByCallee(callee);
 
@@ -137,7 +135,7 @@ public class InboundCallController {
                                     System.currentTimeMillis(),
                                     uuid,
                                     mediaFile,
-                                    String.valueOf(inboundConfig.getGroupId()),
+                                    String.valueOf(0),
                                     remoteVideoPort,
                                     null
                             );
@@ -148,6 +146,16 @@ public class InboundCallController {
 									inboundConfig.getServiceType(),
 									callee
 							);
+
+                            //设置bridge后不挂机;
+                            EslConnectionUtil.sendExecuteCommand(
+                                    "set",
+                                    "hangup_after_bridge=false",
+                                    uuid
+                            );
+
+                            RecordingsUtil.startRecordings(mediaFile, uuid);
+
 							if("ai".equalsIgnoreCase(inboundConfig.getServiceType())) {
 								logger.info("{} Try to transfer call to ai for callee {}.",
 										uuid,
@@ -167,7 +175,10 @@ public class InboundCallController {
 								}
 
 								account.voiceSource = inboundConfig.getVoiceSource();
-								account.voiceCode = inboundConfig.getVoiceCode();
+                                account.voiceCode = inboundConfig.getVoiceCode();
+                                account.asrProvider = inboundConfig.getAsrProvider();
+								account.aiTransferType = inboundConfig.getAiTransferType();
+								account.aiTransferData = inboundConfig.getAiTransferData();
 								logger.info("{} tts config info: voiceSource={}, voiceCode={} for callee {}",
 										uuid,
 										account.voiceSource,
@@ -177,7 +188,7 @@ public class InboundCallController {
 
 								RobotChat robotChat = new RobotChat(inboundDetail, account);
 								if(!robotChat.getHangup()){
-									robotChat.startProcess(uuid, mediaFile);
+									robotChat.startProcess(uuid);
 								}
 							}else{
 								logger.info("{} Try to transfer call to acd queue for callee {}.",
@@ -185,7 +196,7 @@ public class InboundCallController {
 										callee
 								);
 								CallHandler callHandler = new CallHandler(inboundDetail);
-								if (InboundGroupHandler.addCallToQueue(callHandler, String.valueOf(inboundConfig.getGroupId()))) {
+								if (InboundGroupHandler.addCallToQueue(callHandler,inboundConfig.getAiTransferData())) {
 									logger.info("{} successfully add call to acd queue.", inboundDetail.getUuid());
 								}
 							}
@@ -211,6 +222,7 @@ public class InboundCallController {
 
 		return "success";
 	}
+
 
 
 	private String genRecordingsFileName(String remoteVideoPort, String caller, String callee){

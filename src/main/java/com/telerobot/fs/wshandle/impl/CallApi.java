@@ -6,6 +6,7 @@ import com.alibaba.fastjson.TypeReference;
 import com.telerobot.fs.config.CallConfig;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
+import com.telerobot.fs.entity.bo.ConfMember;
 import com.telerobot.fs.entity.dto.CallMonitorInfo;
 import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.entity.pojo.AgentStatus;
@@ -95,6 +96,10 @@ public class CallApi extends MsgHandlerBase {
             case "playMp4File":
                 playMp4File(callArgs);
                 break;
+            // 从普通通话转接到多人会议
+            case "transferToConference":
+                transferToConference(callArgs);
+                break;
 			default:
 				msg.setStatus(400);
 				msg.setMsg(String.format("method not support :%s", cmd));
@@ -102,6 +107,25 @@ public class CallApi extends MsgHandlerBase {
 				break;
 		}
 	}
+
+    private synchronized void transferToConference(CallArgs callArgs){
+        if (this.getIsDisposed()) {
+            return;
+        }
+        if (this.listener != null) {
+            String currentVideoLayOut = callArgs.getArgs().getString("layOut");
+            String currentCallType = callArgs.getArgs().getString("callType");
+            String currentConfTemplate = callArgs.getArgs().getString("confTemplate");
+            MessageResponse checkResp = VideoConfigs.checkVideoConferenceParameters(currentVideoLayOut, currentCallType,  currentConfTemplate);
+            if(checkResp != null){
+                sendReplyToAgent(checkResp);
+                return;
+            }
+            this.listener.transferToConference(callArgs, this.getSessionInfo());
+        }else{
+            Utils.processArgsError("通话不存在.", thisRef);
+        }
+    }
 
 	private void sendCustomerCallToCallWaitHandle(){
         CallWait callWait =  ((CallWait) this.msgHandlerEngine.getMessageHandleByName("callWait"));
@@ -115,47 +139,63 @@ public class CallApi extends MsgHandlerBase {
      */
     private void consultation(CallArgs callArgs) {
 
+        if(this.listener == null || this.listener.getCustomerChannel() == null){
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "no inbound call session found."
+            ));
+            return;
+        }
         // Use the callWait processor to keep the current customer call  on hold with background music.
         sendCustomerCallToCallWaitHandle();
 
         String from = this.getSessionInfo().getOpNum();
         String to = callArgs.getArgs().getString("to");
-        if(from.equalsIgnoreCase(to)){
+        String transferType = callArgs.getArgs().getString("transferType");
+        if (from.equalsIgnoreCase(to)) {
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
                     "can not consultation yourself."
             ));
             return;
         }
-        if(StringUtils.isNullOrEmpty(to)){
+        if (StringUtils.isNullOrEmpty(to)) {
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
                     "'to' argument is null in consultation."
             ));
             return;
         }
-        MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(to);
-        if (null != engine) {
 
-            String uuidInner = UuidGenerator.GetOneUuid();
-            String uuidOuter = UuidGenerator.GetOneUuid();
 
-            SwitchChannel customerChannel = new SwitchChannel(uuidOuter, uuidInner, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
-            SwitchChannel agentChannel = new SwitchChannel(uuidInner, uuidOuter, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
+        String uuidInner = UuidGenerator.GetOneUuid();
+        String uuidOuter = UuidGenerator.GetOneUuid();
 
-            customerChannel.setPhoneNumber(engine.getSessionInfo().getExtNum());
-            customerChannel.setBridgeCallAfterPark(true);
-            customerChannel.setSendChannelStatusToWsClient(true);
-            agentChannel.setPhoneNumber(getExtNum());
-            agentChannel.setBridgeCallAfterPark(false);
-            agentChannel.setSendChannelStatusToWsClient(true);
+        SwitchChannel customerChannel = new SwitchChannel(uuidOuter, uuidInner, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
+        SwitchChannel agentChannel = new SwitchChannel(uuidInner, uuidOuter, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
 
-            this.connectExtension(agentChannel, customerChannel);
-            EslConnectionPool connectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
-            connectionPool.getDefaultEslConn().addListener(agentChannel.getUuid() , listener);
-            connectionPool.getDefaultEslConn().addListener(customerChannel.getUuid() , listener);
+        customerChannel.setPhoneNumber(to);
+        customerChannel.setBridgeCallAfterPark(true);
+        customerChannel.setSendChannelStatusToWsClient(true);
+        agentChannel.setPhoneNumber(getExtNum());
+        agentChannel.setBridgeCallAfterPark(false);
+        agentChannel.setSendChannelStatusToWsClient(true);
 
-            if(agentChannel.getAnsweredTime() > 0) {
+        this.connectExtension(agentChannel, customerChannel);
+        EslConnectionPool connectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
+        connectionPool.getDefaultEslConn().addListener(agentChannel.getUuid(), listener);
+        connectionPool.getDefaultEslConn().addListener(customerChannel.getUuid(), listener);
+
+        if (agentChannel.getAnsweredTime() > 0) {
+
+            if(transferType.equalsIgnoreCase("outer")){
+                customerChannel.setFlag(ChannelFlag.EXTERNAL_LINE);
+                this.bridgeAgentToExternalLineForConsultation(customerChannel, agentChannel, from, to);
+                return;
+            }
+
+            MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(to);
+            if (null != engine) {
 
                 if (engine.getSessionInfo() == null || !engine.getSessionInfo().tryLock()) {
                     sendReplyToAgent(new MessageResponse(
@@ -164,6 +204,8 @@ public class CallApi extends MsgHandlerBase {
                     ));
                     return;
                 }
+
+                customerChannel.setPhoneNumber(engine.getSessionInfo().getExtNum());
 
                 JSONObject jsonObject = new JSONObject();
                 jsonObject.put("status", AgentStatus.busy.getIndex());
@@ -243,12 +285,12 @@ public class CallApi extends MsgHandlerBase {
 
                 customerChannel.setAnsweredTime(0L);
                 callApi.connectExtension(customerChannel, agentChannel);
-                if(customerChannel.getAnsweredTime() <= 0){
+                if (customerChannel.getAnsweredTime() <= 0) {
                     logger.warn("{} The person being consulted has no answer, terminate call session. ", getTraceId());
                     this.listener.endCall("Consultation-call-failed.");
                 }
             }
-        }else {
+        } else {
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
                     String.format("user %s is offline.", to)
@@ -277,14 +319,167 @@ public class CallApi extends MsgHandlerBase {
         }
     }
 
-    private void doTransferCall(String fromOpNum, SwitchChannel customerChannel) {
+    /**
+     *  为咨询通话转接外线
+     * @param externalChannel
+     * @param agentChannel
+     * @param fromOpNum
+     */
+    public void bridgeAgentToExternalLineForConsultation(SwitchChannel externalChannel, SwitchChannel agentChannel, String fromOpNum, String to) {
+        String caller = SystemConfig.getValue("conference_gateway_caller");
+        String gatewayAddr = SystemConfig.getValue("conference_gateway_addr");
+        String profile = SystemConfig.getValue("conference_outboud_profile");
+
+        externalChannel.setRecvMediaHook(new IOnRecvMediaHook() {
+            @Override
+            public void onRecvMedia(Map<String, String> eventHeaders, String traceId) {
+                agentChannel.clearFlag(ChannelFlag.HOLD_CALL);
+            }
+        });
+
+        externalChannel.setAnsweredHook(new IOnAnsweredHook() {
+            @Override
+            public void onAnswered(Map<String, String> eventHeaders, String traceId) {
+                // notify the sender
+                MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(fromOpNum);
+                if (null != engine) {
+                    JSONObject jsonBody = new JSONObject();
+                    jsonBody.put("caller", fromOpNum);
+                    jsonBody.put("callee", to);
+                    String tips = "The call consultation has started.";
+                    engine.sendReplyToAgent(new MessageResponse(
+                            RespStatus.INNER_CONSULTATION_START,
+                            tips,
+                            jsonBody
+                    ));
+                }
+            }
+        });
+
+        agentChannel.setHangupHook(new IOnHangupHook() {
+            @Override
+            public void onHangup(Map<String, String> eventHeaders, String traceId) {
+                // notify the sender
+                MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(fromOpNum);
+                if (null != engine) {
+                    JSONObject jsonBody = new JSONObject();
+                    jsonBody.put("caller", fromOpNum);
+                    jsonBody.put("callee", to);
+                    String tips = "The call consultation has stopped.";
+                    engine.sendReplyToAgent(new MessageResponse(
+                            RespStatus.INNER_CONSULTATION_STOP,
+                            tips,
+                            jsonBody
+                    ));
+                }
+            }
+        });
+
+        String destPhone = externalChannel.getPhoneNumber();
+        String uuid = externalChannel.getUuid();
+        CallListener  listenerAnonymous = new CallListener(this, agentChannel, externalChannel);
+        EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(uuid, listenerAnonymous);
+
+        StringBuilder callParam = new StringBuilder();
+        callParam.append(String.format("{hangup_after_bridge=true,origination_uuid=%s", uuid));
+        callParam.append(",absolute_codec_string=pcma");
+        callParam.append(String.format(",origination_caller_id_number=%s,origination_caller_id_name=%s", caller, caller));
+        callParam.append(String.format(",effective_caller_id_number=%s,effective_caller_id_name=%s", caller, caller));
+        callParam.append(String.format("}sofia/%s/%s@%s", profile, destPhone, gatewayAddr));
+        callParam.append(" &park ");
+
+        String callParams = callParam.toString();
+        String msg = EslConnectionUtil.sendAsyncApiCommand("originate", callParams);
+        logger.info("{} bridgeInboundCallToExternalLine phone: {}, response: {}", getTraceId(), destPhone, msg);
+    }
+
+
+    public void bridgeInboundCallToExternalLine(SwitchChannel externalChannel, SwitchChannel inboundChannel, String fromOpNum) {
+        String caller = SystemConfig.getValue("conference_gateway_caller");
+        String gatewayAddr = SystemConfig.getValue("conference_gateway_addr");
+        String profile = SystemConfig.getValue("conference_outboud_profile");
+
+        externalChannel.setRecvMediaHook(new IOnRecvMediaHook() {
+            @Override
+            public void onRecvMedia(Map<String, String> eventHeaders, String traceId) {
+                inboundChannel.clearFlag(ChannelFlag.HOLD_CALL);
+            }
+        });
+
+        CallListener listenerRef = this.listener;
+
+        externalChannel.setAnsweredHook(new IOnAnsweredHook() {
+            @Override
+            public void onAnswered(Map<String, String> eventHeaders, String traceId) {
+                // notify the sender, call is transferred successfully
+                MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(fromOpNum);
+                if (null != engine) {
+                    JSONObject jsonBody = new JSONObject();
+                    jsonBody.put("caller", fromOpNum);
+                    jsonBody.put("callee", externalChannel.getPhoneNumber());
+                    jsonBody.put("customerInfo", inboundChannel);
+                    engine.sendReplyToAgent(new MessageResponse(
+                            RespStatus.TRANSFER_CALL_SUCCESS,
+                            "call transferred successfully.",
+                            jsonBody
+                    ));
+
+                    if(listenerRef != null) {
+                        listenerRef.setCustomerChannel(null);
+                        listenerRef.setAgentChannel(null);
+                    }
+                }
+            }
+        });
+
+        String destPhone = externalChannel.getPhoneNumber();
+        String uuid = externalChannel.getUuid();
+        CallListener  listenerAnonymous = new CallListener(this, inboundChannel, externalChannel);
+        EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(uuid, listenerAnonymous);
+
+        StringBuilder callParam = new StringBuilder();
+        callParam.append(String.format("{hangup_after_bridge=true,origination_uuid=%s", uuid));
+        callParam.append(",absolute_codec_string=pcma");
+        callParam.append(String.format(",origination_caller_id_number=%s,origination_caller_id_name=%s", caller, caller));
+        callParam.append(String.format(",effective_caller_id_number=%s,effective_caller_id_name=%s", caller, caller));
+        callParam.append(String.format("}sofia/%s/%s@%s", profile, destPhone, gatewayAddr));
+        callParam.append(" &park ");
+
+        String callParams = callParam.toString();
+        String msg = EslConnectionUtil.sendAsyncApiCommand("originate", callParams);
+        logger.info("{} bridgeInboundCallToExternalLine phone: {}, response: {}", getTraceId(), destPhone, msg);
+    }
+
+
+    /**
+     *  把呼入通话转接到外线上;
+     * @param fromOpNum
+     * @param toPhoneNum
+     * @param customerChannel
+     */
+    private void doTransferCallToExternalLine(String fromOpNum, String toPhoneNum, SwitchChannel customerChannel) {
+        SwitchChannel externalLineChannel = new SwitchChannel(
+                UuidGenerator.GetOneUuid(),
+                customerChannel.getUuid(),
+                customerChannel.getCallType(),
+                CallDirection.OUTBOUND
+        );
+
+        externalLineChannel.setPhoneNumber(toPhoneNum);
+        externalLineChannel.setBridgeCallAfterPark(true);
+        externalLineChannel.setSendChannelStatusToWsClient(false);
+
+        this.bridgeInboundCallToExternalLine(externalLineChannel, customerChannel, fromOpNum);
+    }
+
+    private void doTransferCall(String fromOpNum, String toOpNun, SwitchChannel customerChannel) {
+        CallListener listenerRef = this.listener;
         SwitchChannel agentChannel = new SwitchChannel(
                 "",
                 customerChannel.getUuid(),
                 customerChannel.getCallType(),
                 customerChannel.getCallDirection()
         );
-        agentChannel.setPhoneNumber(getExtNum());
         agentChannel.setPhoneNumber(customerChannel.getPhoneNumber());
         agentChannel.setBridgeCallAfterPark(true);
         agentChannel.setFlag(ChannelFlag.TRANSFER_CALL_RECV);
@@ -292,7 +487,11 @@ public class CallApi extends MsgHandlerBase {
         agentChannel.setAnsweredHook(new IOnAnsweredHook() {
             @Override
             public void onAnswered(Map<String, String> eventHeaders, String traceId) {
-                AppContextProvider.getBean(SysService.class).resetAgentBusyLockTime(fromOpNum);
+                AppContextProvider.getBean(SysService.class).resetAgentBusyLockTime(toOpNun);
+                if(listenerRef != null) {
+                    listenerRef.setCustomerChannel(null);
+                    listenerRef.setAgentChannel(null);
+                }
             }
         });
 
@@ -302,9 +501,14 @@ public class CallApi extends MsgHandlerBase {
           // notify the sender, call is transferred successfully
             MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(fromOpNum);
             if (null != engine) {
+                JSONObject jsonBody = new JSONObject();
+                jsonBody.put("caller", fromOpNum);
+                jsonBody.put("callee", toOpNun);
+                jsonBody.put("customerInfo", customerChannel);
                 engine.sendReplyToAgent(new MessageResponse(
                         RespStatus.TRANSFER_CALL_SUCCESS,
-                        "call transferred successfully."
+                        "call transferred successfully.",
+                        jsonBody
                 ));
             }
         }
@@ -400,7 +604,7 @@ public class CallApi extends MsgHandlerBase {
     }
 
     /**
-     * 在咨询成功的情况下使用该按钮，把电话转接给专家坐席。
+     * 在咨询成功的情况下使用该按钮，把电话转接给专家坐席或者外线号码。
      * @param callArgs
      */
     private void transferCallWait(CallArgs callArgs) {
@@ -414,7 +618,7 @@ public class CallApi extends MsgHandlerBase {
 
         CallWait callWait = ((CallWait) this.msgHandlerEngine.getMessageHandleByName("callWait"));
         SwitchChannel customerChannel = callWait.getCustomerChannel();
-        if(customerChannel == null || customerChannel.getHangupTime() > 0L || customerChannel.getAnsweredTime() == 0L ){
+        if(customerChannel == null || customerChannel.getHangupTime() > 0L){
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
                     "customer is hangup already."
@@ -431,6 +635,61 @@ public class CallApi extends MsgHandlerBase {
             ));
             return;
         }
+
+        if(professionalChannel.testFlag(ChannelFlag.EXTERNAL_LINE)){
+            // HOLD professional agent's call session
+            EslConnectionUtil.sendExecuteCommand(
+                    "set",
+                    "park_after_bridge=true",
+                    professionalChannel.getUuid()
+            );
+            professionalChannel.setFlag(ChannelFlag.HOLD_CALL);
+            ThreadUtil.sleep(200);
+
+            logger.info("{} try to hangup extension {} of user {}.", getTraceId(), getExtNum(), getSessionInfo().getOpNum());
+            //挂断转出电话的坐席分机
+            this.listener.endCall("call_transferred.");
+            ThreadUtil.sleep(200);
+            EslMessage message = EslConnectionUtil.sendSyncApiCommand("uuid_bridge",
+                    professionalChannel.getUuid() + " " +
+                            customerChannel.getUuid()
+            );
+
+            JSONObject jsonBody = new JSONObject();
+            jsonBody.put("caller", professionalChannel.getPhoneNumber());
+            jsonBody.put("callee", customerChannel.getPhoneNumber());
+            jsonBody.put("customerInfo", customerChannel);
+
+            boolean success = JSON.toJSONString(message).contains("+OK");
+            if(success) {
+                CallListener  listenerAnonymous = new CallListener(this, customerChannel, professionalChannel);
+                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(professionalChannel.getUuid() + "-ex", listenerAnonymous);
+                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(customerChannel.getUuid() + "-ex",  listenerAnonymous);
+                MessageResponse response = new MessageResponse(
+                        RespStatus.TRANSFER_CALL_SUCCESS,
+                        "call transferred successfully.",
+                        jsonBody
+                );
+                callWait.onCallWaitStopped();
+                callWait.dispose();
+                this.msgHandlerEngine.sendReplyToAgent(response);
+                professionalChannel.clearFlag(ChannelFlag.HOLD_CALL);
+                agentChannel.clearFlag(ChannelFlag.HOLD_CALL);
+
+                this.listener.setCustomerChannel(null);
+                this.listener.setAgentChannel(null);
+            }else{
+                this.msgHandlerEngine.sendReplyToAgent(new MessageResponse(
+                        RespStatus.SERVER_ERROR,
+                        "Transfer call failed, " +  JSON.toJSONString(message),
+                        jsonBody
+                ));
+            }
+
+            return;
+        }
+
+
         String from = getSessionInfo().getOpNum();
         String to = professionalChannel.getPhoneNumber();
 
@@ -486,11 +745,15 @@ public class CallApi extends MsgHandlerBase {
                             jsonBody
                     );
                     callWait.onCallWaitStopped();
+                    callWait.dispose();
                     this.msgHandlerEngine.sendReplyToAgent(response);
                     engine.sendReplyToAgent(response);
 
                     professionalChannel.clearFlag(ChannelFlag.HOLD_CALL);
                     agentChannel.clearFlag(ChannelFlag.HOLD_CALL);
+
+                    this.listener.setCustomerChannel(null);
+                    this.listener.setAgentChannel(null);
                 }else{
                     this.msgHandlerEngine.sendReplyToAgent(new MessageResponse(
                             RespStatus.SERVER_ERROR,
@@ -521,6 +784,7 @@ public class CallApi extends MsgHandlerBase {
         }
         String from = this.getSessionInfo().getOpNum();
         String to = callArgs.getArgs().getString("to");
+        String transferType = callArgs.getArgs().getString("transferType");
         if(from.equalsIgnoreCase(to)){
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
@@ -545,6 +809,25 @@ public class CallApi extends MsgHandlerBase {
             return;
         }
 
+       if(transferType.equalsIgnoreCase("outer")){
+           EslConnectionUtil.sendExecuteCommand(
+                   "set",
+                   "park_after_bridge=true",
+                   customerChannel.getUuid()
+           );
+           customerChannel.setFlag(ChannelFlag.HOLD_CALL);
+           logger.info("{} set customerChannel {} HOLD_CALL and park_after_bridge=true",
+                   getTraceId(), customerChannel.getUuid());
+           ThreadUtil.sleep(100);
+
+           //挂断转出电话的分机
+           this.listener.endCall("call_transferred_to_external");
+           ThreadUtil.sleep(100);
+
+           doTransferCallToExternalLine(from, to, customerChannel);
+           return;
+       }
+
         MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngineByOpNum(to);
         if (null != engine) {
             if(engine.getSessionInfo() == null || !engine.getSessionInfo().tryLock()){
@@ -567,11 +850,11 @@ public class CallApi extends MsgHandlerBase {
                 customerChannel.setFlag(ChannelFlag.HOLD_CALL);
                 logger.info("{} set customerChannel {} HOLD_CALL and park_after_bridge=true",
                         getTraceId(), customerChannel.getUuid());
-                ThreadUtil.sleep(10);
+                ThreadUtil.sleep(100);
 
                 //挂断转出电话的分机
                 this.listener.endCall("call_transferred.");
-                ThreadUtil.sleep(10);
+                ThreadUtil.sleep(100);
 
                 //发送弹屏消息
                 engine.sendReplyToAgent(new MessageResponse(
@@ -593,7 +876,7 @@ public class CallApi extends MsgHandlerBase {
                         to, AgentStatus.busy.getIndex()
                 );
 
-                callApi.doTransferCall(from, customerChannel);
+                callApi.doTransferCall(from, to, customerChannel);
             } else {
                 engine.sendReplyToAgent(new MessageResponse(
                         RespStatus.SERVER_ERROR, "server internal error!", customerChannel)
@@ -760,10 +1043,14 @@ public class CallApi extends MsgHandlerBase {
                         ",rtp_force_video_fmtp='profile-level-id="+ videoLevel.trim() +";packetization-mode=1',record_concat_video=true" : ""
         );
 
+        String extraParams = SystemConfig.getValue("outbound-call-extra-params-for-profile-"+ sipProfile , "");
+        String extraParamsFinal =  extraParams.length() == 0 ? "" :  "," + extraParams ;
+
         // 对接模式和注册模式，bridge字符串拼接内容不同;
-        String bridgeString = String.format("{execute_on_answer='record_session %s',%s}sofia/%s/%s%s@%s  &park",
+        String bridgeString = String.format("{execute_on_answer='record_session %s',%s%s}sofia/%s/%s%s@%s  &park",
                 CallConfig.RECORDINGS_PATH + fullRecordPath,
                 callPrefixOuterLine,
+                extraParamsFinal,
                 sipProfile,
                 calleePrefix,
                 phone,
@@ -771,9 +1058,10 @@ public class CallApi extends MsgHandlerBase {
         );
 
         if(gatewayConfig.getRegister()){
-            bridgeString = String.format("{execute_on_answer='record_session %s',%s}sofia/gateway/%s/%s%s  &park",
+            bridgeString = String.format("{execute_on_answer='record_session %s',%s%s}sofia/gateway/%s/%s%s  &park",
                     CallConfig.RECORDINGS_PATH + fullRecordPath,
                     callPrefixOuterLine,
+                    extraParamsFinal,
                     gatewayAddress,
                     calleePrefix,
                     phone
@@ -972,7 +1260,9 @@ public class CallApi extends MsgHandlerBase {
                     agentChannel.getHangupTime() == 0L && !getIsDisposed());
 
             logger.info("{} Call finished.", getTraceId());
-            if (!listener.checkCustomerChannelCallStatus()) {
+
+            boolean customerAnswered = listener.getCustomerChannel().getAnsweredTime() > 0;
+            if (!customerAnswered) {
                 logger.info("{} hangup extension {} due to no outbound call connected.", getTraceId(), getSessionInfo().getExtNum());
                 endCall();
             }

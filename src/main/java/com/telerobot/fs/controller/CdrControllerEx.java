@@ -54,6 +54,7 @@ public class CdrControllerEx {
 	@RequestMapping("/record")
 	@ResponseBody
 	public String postCalling(HttpServletRequest request,Map<String,Object> model) throws Exception {
+		logger.info("recv cdr save request from freeswitch. cdr length = {}", request.getParameter("cdr").length());
 		Map<String, Object> params = RequestUtils.parameterValuesToMap(request);
 		if(!params.containsKey("cdr")) {
 			return "No cdr found.";

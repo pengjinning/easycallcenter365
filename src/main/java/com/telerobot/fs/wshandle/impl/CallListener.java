@@ -3,7 +3,9 @@ package com.telerobot.fs.wshandle.impl;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
+import com.telerobot.fs.entity.bo.ConferenceCommand;
 import com.telerobot.fs.utils.CommonUtils;
+import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadUtil;
 import com.telerobot.fs.wshandle.*;
@@ -14,6 +16,7 @@ import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 
@@ -347,16 +350,18 @@ public class CallListener implements IEslEventListener {
 	 * @return
 	 */
 	public boolean checkCustomerChannelCallStatus(){
-		String hangupSipCode = customerChannel.getHangupSipCode();
-		if(hangupSipCode.startsWith("4") || hangupSipCode.startsWith("5")){
-			return false;
-		}
 		if(customerChannel.testFlag(ChannelFlag.RECV_RING_MEDIA)){
 			return true;
 		}
 		if(customerChannel.getAnsweredTime() > 0L){
 			return true;
 		}
+
+		String hangupSipCode = customerChannel.getHangupSipCode();
+		if(hangupSipCode.startsWith("4") || hangupSipCode.startsWith("5")){
+			return false;
+		}
+
 		return false;
 	}
 
@@ -441,6 +446,75 @@ public class CallListener implements IEslEventListener {
 				3
 		);
 
+	}
+
+
+	public void transferToConference(CallArgs callArgs, SessionEntity sessionEntity) {
+		if (agentChannel.getHangupTime() == 0L) {
+			String customerName = callArgs.getArgs().getString("customerName");
+			long startTime = 0L;
+
+			if(agentChannel.getCallDirection().equalsIgnoreCase(CallDirection.INBOUND)){
+				EslConnectionUtil.sendExecuteCommand(
+						"set",
+						"park_after_bridge=true",
+						customerChannel.getUuid()
+				);
+				ThreadUtil.sleep(100);
+			}
+
+			agentChannel.setFlag(ChannelFlag.RE_INVITE_VIDEO);
+
+			logger.info("{} hangup extension {}, UuidInner={}, before transferToConference",
+					getTraceId(), sessionEntity.getExtNum() , agentChannel.getUuid() );
+			// 先挂断内线分机
+			EslConnectionUtil.sendExecuteCommand(
+					"hangup",
+					"wait-for-Conference",
+					agentChannel.getUuid()
+			);
+
+			startTime = System.currentTimeMillis();
+			int counter = 0;
+			while (agentChannel.getHangupTime() == 0L && counter < 200){
+				ThreadUtil.sleep(5);
+				counter ++;
+			}
+			logger.info("{} wait for extension hangup , cost {} mills.", getTraceId(), System.currentTimeMillis() - startTime);
+			ThreadUtil.sleep(100);
+
+			//停止录音/录像
+			String stopRecordResp = EslConnectionUtil.sendAsyncApiCommand(
+					"uuid_record",
+					String.format("%s stop %s",
+							customerChannel.getUuid(),
+							customerChannel.getRecordingFilePathFull()
+					)
+			);
+			logger.info("{} stop record_session response: {}",  stopRecordResp);
+			EslConnectionUtil.sendExecuteCommand(
+					"set",
+					String.format("transfer_to_conference_time=%s",
+							DateUtils.formatDateTime(new Date())
+					),
+					customerChannel.getUuid()
+			);
+			ThreadUtil.sleep(100);
+
+			MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngine(sessionEntity.getSessionId());
+			if(null != engine) {
+				Conference conference = ((Conference) engine.getMessageHandleByName("conference"));
+				if (null != conference) {
+					ConferenceCommand command = new ConferenceCommand();
+					command.setMethod("startconf");
+					command.setArgs(callArgs.getArgs());
+					conference.transferToConference(command, customerChannel, customerName);
+				}
+			}
+
+		}else {
+			callApiObject.sendReplyToAgent(new MessageResponse(RespStatus.REQUEST_PARAM_ERROR, "通话不存在"));
+		}
 	}
 
 	public synchronized void reInviteVideo(SessionEntity sessionEntity){

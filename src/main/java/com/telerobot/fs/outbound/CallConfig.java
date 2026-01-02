@@ -20,6 +20,12 @@ public class CallConfig {
 	 */
 	public static final int CALL_TYPE_VOICE_CALL_NOTIFICATION = 2;
 
+
+	/**
+	 * ivr call
+	 */
+	public static final int CALL_TYPE_IVR_VOICE = 3;
+
 	public static int wait_delay_after_a_batch = Integer.parseInt(SystemConfig.getValue("wait-delay-after-a-batch", "15"));
 
     /**

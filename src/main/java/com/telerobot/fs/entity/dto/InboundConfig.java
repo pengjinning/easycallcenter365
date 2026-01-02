@@ -9,6 +9,8 @@ public class InboundConfig {
     private String callee;
     private String voiceCode;
     private String voiceSource;
+    private String asrProvider;
     private String serviceType;
-    private int groupId;
+    private String aiTransferType;
+    private String aiTransferData;
 }

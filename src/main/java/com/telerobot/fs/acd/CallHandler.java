@@ -232,7 +232,6 @@ public class CallHandler {
 			boolean notAnsweredAndNotHangup = !answered && !hangup;
 			boolean callExtensionNoAnswer = task.transferring && transferExpired && notAnsweredAndNotHangup;
 			boolean transferExtensionFailed =  task.transferFailed;
-			boolean notOutboundCall = task.inboundDetail.getOutboundPhoneInfo() == null;
 			if(transferExtensionFailed || callExtensionNoAnswer){
 				log.warn("{} Put the transfer-failed call back to the queue:{}", task.uuid, JSON.toJSONString(task.inboundDetail));
 				EslConnectionUtil.sendExecuteCommand(
@@ -252,7 +251,7 @@ public class CallHandler {
 
 			long waitMills = (System.currentTimeMillis() - task.lastPlayNoFreeAgentTime);
 			long interval  = acdPlayQueueNumInterval *  1000;
-			if (notAnsweredAndNotHangup && waitMills >= interval && !task.transferring && notOutboundCall) {
+			if (notAnsweredAndNotHangup && waitMills >= interval && !task.transferring) {
 				StringBuilder sbTips = new StringBuilder();
 				String tips = getQueueNumTips(task);
                 if(!StringUtils.isNullOrEmpty(tips)){
@@ -272,7 +271,7 @@ public class CallHandler {
 				continue;
 			}
 
-			if (notAnsweredAndNotHangup && !task.keepMusicPlayed && notOutboundCall ) {
+			if (notAnsweredAndNotHangup && !task.keepMusicPlayed ) {
 				EslConnectionUtil.sendExecuteCommand(
 						"endless_playback",
 						"$${sounds_dir}/ivr/keep.wav",
@@ -385,15 +384,11 @@ public class CallHandler {
 				MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().getMsgHandlerEngine(agent.getSessionId());
 				if(null != engine){
                     //发送弹屏消息
-					if(inboundDetail.getOutboundPhoneInfo() != null) {
-						engine.sendReplyToAgent(new MessageResponse(RespStatus.PREDICTIVE_CALL_INBOUND,
-								"predictive outbound call", inboundDetail.getOutboundPhoneInfo()));
-					}else {
-						engine.sendReplyToAgent(new MessageResponse(RespStatus.NEW_INBOUND_CALL, "new inbound call", inboundDetail));
-					}
+					engine.sendReplyToAgent(new MessageResponse(RespStatus.NEW_INBOUND_CALL, "new inbound call", inboundDetail));
 
 					JSONObject jsonObject = new JSONObject();
-					jsonObject.put("status", AgentStatus.incall.getIndex());
+					jsonObject.put("status", AgentStatus.lockStatus.getIndex());
+					jsonObject.put("text", AgentStatus.lockStatus.getText());
 					// 座席置忙
 					engine.sendReplyToAgent(new MessageResponse(RespStatus.STATUS_CHANGED, "status: busy", jsonObject));
                     transferring = true;
@@ -433,7 +428,7 @@ public class CallHandler {
 	}
 
 	private void playOpNumOnTransferring(){
-		if (playOpNum && inboundDetail.getOutboundPhoneInfo() == null) {
+		if (playOpNum) {
 			// 播放为当前通话服务的客服人员工号
 			String destOpNum = agentSessionEntity.getOpNum();
 			// 打断历史播放的等待音乐
@@ -535,7 +530,13 @@ public class CallHandler {
 					// 推送话单;
 					CdrDetail cdrDetail = new CdrDetail();
 					cdrDetail.setUuid(uuid);
-					cdrDetail.setCdrType("inbound");
+
+					if(inboundDetail.getOutboundPhoneInfo() == null) {
+						cdrDetail.setCdrType("inbound");
+					}else{
+						cdrDetail.setCdrType("outbound");
+					}
+
 					cdrDetail.setCdrBody(JSON.toJSONString(inboundDetail));
 					CdrPush.addCdrToQueue(cdrDetail);
 				}else{

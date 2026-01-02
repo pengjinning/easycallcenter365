@@ -10,18 +10,22 @@
 * 支持AI客服说话时被打断/打断关键词设置
 * 提供网页管理系统，支持在线配置
 * 实时流式语音合成/FunAsr开源语音识别/阿里云语音识别
+* 支持豆包声音复刻 [New]
+* 支持IVR外呼通话 [New]
 * 支持AI通话无缝转接人工坐席
 * 支持电话工具条/支持acd话务排队
 * 支持多个AI呼入客服/独立配置呼入号码及大模型底座
 * 支持创建AI语音外呼任务
-* 压力测试: 支持200外呼或呼入并发(8c/16g)
-* 支持视频通话/视频会议(商业版)
+* 压力测试: 商业版支持200外呼或呼入并发
+* 支持多方通话/电话会议
  
-更新日期: 2025/09/25
+更新日期: 2026/01/02
 
-### 技术交流 && 商业咨询
+**本次更新的重点功能是：豆包语音复刻，支持克隆自己的声音。**
 
-   本项目当前仅对商业用户提供技术支持服务，这不是一个免费软件， 商业使用需付费获得授权。
+### 商业咨询
+
+ 本项目当前仅对商业用户提供技术支持服务，这不是一个免费软件， 商业使用需付费获得授权。
 
 ![联系方式](/docs/images/wechat2.png) 
   
@@ -29,9 +33,13 @@
 
 [系统使用及配置演示视频](https://mp.weixin.qq.com/s/05GIFKWtHt6EB0mxgL0BuA)
 
+此外我们还编写了 [图文手册](/docs/manual/manual.md) 供参考。
+
+[常见问题手册](docs/manual/faq.md) 提供了对常见问题的排查的指导。
+
 ### 一键安装包
 
-**从源代码编译，请参考后面的编译说明** 。 一键安装体验包的地址在百度网盘。
+一键安装体验包的地址在百度网盘。
 链接: https://pan.baidu.com/s/1ZnQ64KIJWn1p-iJr-b9f4A 提取码: z2qn 
 一键安装包内置了FreeSWITCH-1.10.11、funasr-0.1.9、easycallcenter365.jar、easycallcenter365-gui.jar、mysql-8。
 下载到本地后，按照目录中的"使用说明.txt" 导入VmWare虚拟机并启动，最后调整相关参数即可体验测试。
@@ -102,27 +110,10 @@ USE easycallcenter365;
 
 SOURCE /home/easycallcenter365.sql;
 ```  
-
-
-### 如何编译`easycallcenter365`
-
-参考  [Build.md](Build.md)
-
-### 编译`easycallcenter365-gui`
- 
-`easycallcenter365-gui` 是 `easycallcenter365`的可视化管理web界面系统。项目地址及编译参考 [/easycallcenter365/easycallcenter365-gui](https://gitee.com/easycallcenter365/easycallcenter365-gui)
-
-### 编译FreeSWITCH模块
- 
-这里主要是指 **流式语音合成** 以及 **语音识别** 模块。参考 [/easycallcenter365/freeswitch-modules-libs](https://gitee.com/easycallcenter365/freeswitch-modules-libs)
    
 ### 详细部署及配置
 
 参考文件 [Deploy.txt](https://github.com/easycallcenter365/easycallcenter365/blob/master/Deploy.txt)。
-
-此外我们还编写了 [图文手册](/docs/manual/manual.md) 供参考。
-
-[常见问题手册](docs/manual/faq.md) 提供了对常见问题的排查的指导。
    
 ### 目前支持哪些语音识别方式?   
 
@@ -184,6 +175,4 @@ var groupId = 1; // 业务组id
 ![传统电话接入后的网络结构图](docs/images/network-callcenter.png) 
 
   
-
   
-

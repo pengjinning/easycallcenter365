@@ -136,8 +136,23 @@ public class JiutianWorkflow extends AbstractChatRobot {
                         String output = data.getString("output");
                         logger.info(output);
                         if (StringUtils.isNotBlank(output)){
-                            JSONObject outputObj = JSONObject.parseObject(output);
-                            speechContent = outputObj.getJSONArray("output").getString(0);
+                            try {
+                                JSONObject outputObj = JSONObject.parseObject(output);
+                                speechContent = outputObj.getJSONArray("output").getString(0);
+                            } catch (Exception e1) {
+                                logger.info("返回值不是数组结构");
+                            }
+                            if (StringUtils.isEmpty(speechContent)) {
+                                try {
+                                    JSONObject outputObj = JSONObject.parseObject(output);
+                                    speechContent = outputObj.getString("output");
+                                } catch (Exception e) {
+                                    logger.info("返回值不是数组结构也不是对象结构");
+                                }
+                            }
+                            if (StringUtils.isEmpty(speechContent)) {
+                                speechContent = output;
+                            }
                         }
                     }
                 }

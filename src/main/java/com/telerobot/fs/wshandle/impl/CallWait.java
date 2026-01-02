@@ -92,11 +92,11 @@ public class CallWait extends MsgHandlerBase {
             customerChannel.setFlag(ChannelFlag.HOLD_CALL);
             logger.info("{} set customerChannel {} HOLD_CALL and park_after_bridge=true",
                     getTraceId(), customerChannel.getUuid());
-            ThreadUtil.sleep(10);
+            ThreadUtil.sleep(300);
 
             // hangup extension
             callApi.listener.endCall("CallWait.");
-            ThreadUtil.sleep(1000);
+            ThreadUtil.sleep(300);
 
             EslConnectionUtil.sendExecuteCommand("endless_playback",
                     "$${sounds_dir}/ivr/hold.wav",

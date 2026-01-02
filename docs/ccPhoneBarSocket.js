@@ -550,9 +550,24 @@ function ccPhoneBarSocket() {
 		"free"  :  2,
 
 		/**
-		 * 事后处理中
-		 */
+		* 忙碌
+		*/
 		"busy"  :  3,
+
+		/**
+		 * 小休
+		 */
+		"busy_rest"  :  31,
+
+		/**
+		 * 线下会议
+		 */
+		"busy_meeting"  :  32,
+
+		/**
+		 * 培训
+		 */
+		"busy_training"  :  33,
 
 		/**
 		 * 通话中
@@ -560,12 +575,12 @@ function ccPhoneBarSocket() {
 		"incall" : 4,
 
 		/**
-		 * 事后处理，填写表单中
+		 * 话后处理，填写表单中
 		 */
 		"fill_form" : 5,
 
 		/**
-		 * 会议中
+		 * 电话会议中
 		 */
 		"conference"  :  6
 	};
@@ -879,73 +894,91 @@ function ccPhoneBarSocket() {
     };
 
 	this.consultationBtnClickUI = function () {
-		var groupId = $("#transfer_to_groupIds").val();
-		if($.trim(groupId) == ""){
-			alert("请选择业务组!");
-			$("#transfer_to_groupIds").focus();
-			return;
-		}
-		var member = $("#transfer_to_member").val();
-		if($.trim(member) == ""){
-			alert("请选择要咨询的坐席成员!");
-			$("#transfer_to_member").focus();
-			return;
-		}
+        let transferType = "outer";
+        let phoneNumber = $("#externalPhoneNumber").val().trim();
+        if (phoneNumber === "") {
+			transferType = "inner";
+            var groupId = $("#transfer_to_groupIds").val();
+            if ($.trim(groupId) == "") {
+                alert("请选择业务组!");
+                $("#transfer_to_groupIds").focus();
+                return;
+            }
+            var member = $("#transfer_to_member").val();
+            if ($.trim(member) == "") {
+                alert("请选择要咨询的坐席成员!");
+                $("#transfer_to_member").focus();
+                return;
+            }
 
-		var selectText = $('#transfer_to_member option:selected').text();
-		if(selectText.indexOf("空闲") == -1){
-			alert("请选择空闲的坐席成员!");
-			$("#transfer_to_member").focus();
-			return;
-		}
+            var selectText = $('#transfer_to_member option:selected').text();
+            if (selectText.indexOf("空闲") == -1) {
+                alert("请选择空闲的坐席成员!");
+                $("#transfer_to_member").focus();
+                return;
+            }
 
-		if(member == this.getOpNum()) {
-			alert("不能咨询自己，请选择其他坐席成员!");
-			return;
-		}
+            if (member == this.getOpNum()) {
+                alert("不能咨询自己，请选择其他坐席成员!");
+                return;
+            }
+            phoneNumber = member;
+        }
+        this.callControl("consultation", {"to": phoneNumber, "transferType": transferType});
 
-		this.callControl("consultation", {"to": member});
-	};
+    };
 
 	/**
 	 *  处理通话转接按钮点击事件
 	 */
 	this.transferBtnClickUI = function() {
-		var groupId = $("#transfer_to_groupIds").val();
-		if($.trim(groupId) == ""){
-			alert("请选择转接的业务组!");
-			$("#transfer_to_groupIds").focus();
-			return;
-		}
-		var member = $("#transfer_to_member").val();
-		if($.trim(member) == ""){
-			alert("请选择转接的坐席成员!");
-			$("#transfer_to_member").focus();
-			return;
-		}
+	    let transferType = "outer";
+	    let phoneNumber = $("#externalPhoneNumber").val().trim();
+        if(phoneNumber === "") {
+            transferType = "inner";
+            var groupId = $("#transfer_to_groupIds").val();
+            if ($.trim(groupId) === "") {
+                alert("请选择转接的业务组!");
+                $("#transfer_to_groupIds").focus();
+                return;
+            }
+            var member = $("#transfer_to_member").val();
+            if ($.trim(member) === "") {
+                alert("请选择转接的坐席成员!");
+                $("#transfer_to_member").focus();
+                return;
+            }
 
-		var selectText = $('#transfer_to_member option:selected').text();
-		if(selectText.indexOf("空闲") == -1){
-			alert("请选择空闲的坐席成员!");
-			$("#transfer_to_member").focus();
-			return;
-		}
-		if(member == this.getOpNum()) {
-			alert("不能转给自己，请选择其他坐席成员!");
-			return;
-		}
-        this.transferCall(member);
+            var selectText = $('#transfer_to_member option:selected').text();
+            if (selectText.indexOf("空闲") === -1) {
+                alert("请选择空闲的坐席成员!");
+                $("#transfer_to_member").focus();
+                return;
+            }
+            if (member === this.getOpNum()) {
+                alert("不能转给自己，请选择其他坐席成员!");
+                return;
+            }
+            phoneNumber = member;
+        }
+        this.transferCall(phoneNumber, transferType);
 	};
 
 	/**
 	 *  处理通话转接
+     *  @param userCodeOrPhone 工号或者电话号码
+     *  @param transferType 转接类型：工号还是外部号码（inner or outer）
 	 */
-	this.transferCall = function(opnum) {
-		if(opnum != this.getOpNum()) {
-			this.callControl("transferCall", {"to": opnum})
-		}else{
-			console.error("cant not transfer call to yourself.")
-		}
+	this.transferCall = function(userCodeOrPhone, transferType) {
+	    if(transferType === "inner") {
+            if (userCodeOrPhone !== this.getOpNum()) {
+                this.callControl("transferCall", {"to": userCodeOrPhone, "transferType" : "inner" })
+            } else {
+                console.error("cant not transfer call to yourself.")
+            }
+        }else{
+            this.callControl("transferCall", {"to": userCodeOrPhone, "transferType" : "outer" })
+        }
 	};
 
 	//挂机
@@ -1240,7 +1273,6 @@ function ccPhoneBarSocket() {
                     console.log('请先上线.');
                     return;
                 }
-                alert('视频会议功能仅在高级版中支持!');
                 var confObjId = document.getElementById("conference_area");
                 if(confObjId.style.display === "block"){
 					confObjId.style.display = "none";
@@ -1267,6 +1299,12 @@ function ccPhoneBarSocket() {
 			if ($(this).hasClass('on')) {
 				_cc.setStatus(ccPhoneBarSocket.agentStatusEnum.busy);
 			}
+		});
+
+		$('#setBusySubList').on('change', function () {
+			 let itemValue = $('#setBusySubList').val();
+			 console.log('set busy subStatus', itemValue);
+			 _cc.setStatus(itemValue);
 		});
 
 		$('#hangUpBtn').on('click', function () {
@@ -1425,6 +1463,304 @@ function ccPhoneBarSocket() {
 			cmd.body = {"cmd": "unSubscribe", "args": {}};
 			ws.send(JSON.stringify(cmd));
 		}
+	};
+
+	/*************************  以下是电话会议相关  ***************************/
+
+	/**
+	 *  启动会议； 仅限使用默认UI场景下使用;
+	 */
+	this.conferenceStartBtnUI = function(customerName){
+		var callType = document.getElementById("conf_call_type").value;
+		var confTemplate = document.getElementById("conf_template").value;
+		var layOut = document.getElementById("conf_layout").value;
+
+		_cc.setStatusBusy();
+
+		// 禁用外呼按钮
+		$("#callBtn").removeClass('on');
+
+		// 禁用置闲按钮
+		$("#setFree").removeClass('on');
+
+		// 禁用签出按钮
+		$("#onLineBtn").removeClass('on');
+
+		document.getElementById("startConference").setAttribute("disabled", "true");
+
+		if(_cc.getCallConnected()) {
+			let tips = "是否把当前通话转换为会议 ?";
+			console.log(tips);
+			if(confirm(tips)) {
+				_cc.transferToConference(layOut, confTemplate, callType, customerName);
+			}else{
+				document.getElementById("startConference").removeAttribute("disabled");
+			}
+		}else {
+			_cc.conferenceStart(layOut, confTemplate, callType);
+		}
+	};
+
+	/**
+	 *  添加会议成员； 仅限使用默认UI场景下使用;
+	 */
+	this.conferenceAddMemberBtnUI = function (reInvite, memberPhoneParam,  memberNameParam) {
+		var memberName = "";
+		var memberPhone = "";
+		var memberCallType = $.trim(document.getElementById("member_call_type").value);
+		var memberVideoLevel = $.trim(document.getElementById("member_video_level").value);
+
+		if(reInvite === 0) {
+			memberName = $("#member_name").val();
+			memberPhone = $("#member_phone").val();
+			if (memberName.length === 0 || $.trim(memberName) === "") {
+				alert('请填写参会者姓名!');
+				return;
+			}
+			if (memberPhone.length === 0 || $.trim(memberPhone) === "") {
+				alert('请填写参会者手机号!');
+				return;
+			}
+
+			memberName = $.trim(memberName);
+			memberPhone = $.trim(memberPhone);
+			// 使用会员成员html模版添加新成员
+			var templateObj = document.getElementById("conf_member_template");
+
+			var existMember = document.getElementById("conf_member_" + memberPhone) != null;
+			if (existMember) {
+				alert('会议成员已经存在，请不要重复添加!');
+				return;
+			}
+
+			var memberHtmlItem = templateObj.innerHTML;
+			memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_name}", "gm"), memberName);
+			memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_phone}", "gm"), memberPhone);
+			memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_status}", "gm"), "即将呼叫");
+
+			var li = document.createElement("li");
+			li.setAttribute("id", "conf_member_" + memberPhone);
+			li.setAttribute("class", "conf_member_item_row");
+			li.innerHTML = memberHtmlItem;
+
+			_cc.insertAfter(li, templateObj);
+
+			$("#member_name").val('');
+			$("#member_phone").val('');
+		}else{
+			memberName = memberNameParam;
+			memberPhone = memberPhoneParam;
+		}
+
+		// 隐藏 mute及 vmute按钮
+		var memberItemId = "#conf_member_" + memberPhone;
+		$(".conf_mute", $(memberItemId)).find("img").hide();
+		$(".conf_vmute", $(memberItemId)).find("img").hide();
+		$(".conf_re_invite", $(memberItemId)).hide();
+		$(".conf_status", $(memberItemId)).html("即将呼叫");
+
+		_cc.conferenceAddMembers( [
+			{"name": memberName, "phone": memberPhone, "callType" : memberCallType,  "videoLevel": memberVideoLevel}
+		]);
+	};
+
+	/**
+	 *  从现有通话添加会议成员；
+	 */
+	this.conferenceAddMemberFromExistCall = function (memberName, memberPhone) {
+		if (memberName.length === 0 || $.trim(memberName) === "") {
+			alert('请填写参会者姓名!');
+			return;
+		}
+		if (memberPhone.length === 0 || $.trim(memberPhone) === "") {
+			alert('请填写参会者手机号!');
+			return;
+		}
+		memberName = $.trim(memberName);
+		memberPhone = $.trim(memberPhone);
+
+		// 使用html模版添加新成员
+		var templateObj = document.getElementById("conf_member_template");
+		var existMember = document.getElementById("conf_member_" + memberPhone) != null;
+		if (existMember) {
+			alert('会议成员已经存在，请不要重复添加!');
+			return;
+		}
+
+		var memberHtmlItem = templateObj.innerHTML;
+		memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_name}", "gm"), memberName);
+		memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_phone}", "gm"), memberPhone);
+		memberHtmlItem = memberHtmlItem.replace(new RegExp("{member_status}", "gm"), "即将呼叫");
+		var li = document.createElement("li");
+		li.setAttribute("id", "conf_member_" + memberPhone);
+		li.setAttribute("class", "conf_member_item_row");
+		li.innerHTML = memberHtmlItem;
+		_cc.insertAfter(li, templateObj);
+
+		// 隐藏 mute及 vmute按钮
+		var memberItemId = "#conf_member_" + memberPhone;
+		$(".conf_mute", $(memberItemId)).find("img").show();
+		$(".conf_vmute", $(memberItemId)).find("img").show();
+		$(".conf_re_invite", $(memberItemId)).hide();
+		$(".conf_status", $(memberItemId)).html("通话中").css("color", "green");
+	};
+
+	/**
+	 *  通话转为会议
+	 * @param layOut
+	 * @param confTemplate
+	 * @param callType
+	 * @param customerName
+	 */
+	this.transferToConference = function (layOut, confTemplate, callType, customerName) {
+		console.log("try to transferToConference: ", layOut, confTemplate, callType, customerName);
+		_cc.callControl(
+			"transferToConference",
+			{
+				"layOut": layOut,
+				'callType': callType,
+				'confTemplate': confTemplate,
+				'customerName' : customerName
+			}
+		);
+	};
+
+
+	/**
+	 *  主持人启动电话会议
+	 * @param layOut 会议布局
+	 * @param confTemplate 会议模版
+	 * @param callType 会议类型
+	 */
+	this.conferenceStart = function(layOut, confTemplate, callType) {
+		console.log("正常发起多方通话");
+		var cmd = {};
+		cmd.action = "conference";
+		cmd.body = {"method": "startconf", "args": {
+				"layOut": layOut,
+				'callType': callType,
+				'confTemplate': confTemplate
+			}};
+		ws.send(JSON.stringify(cmd));
+	};
+
+
+	/**
+	 *  VMute会议成员（不显示视频）;
+	 **/
+	this.conferenceVMuteMember = function(members) {
+		// single phone
+		if(typeof(members) === "string") {
+			this.conferenceControl("vmute",
+				[
+					{"phone": members}
+				]
+			);
+		}else{
+			// multiple phones array, e.g.: [  {"phone": '15005600321'}, {"phone": '15005600323'} ]
+			this.conferenceControl("vmute", members);
+		}
+	};
+
+
+	/**
+	 *  UnVMute会议成员（显示视频）;
+	 **/
+	this.conferenceUnVMuteMember = function(members) {
+		// single phone
+		if(typeof(members) === "string") {
+			this.conferenceControl("unvmute",
+				[
+					{"phone": members}
+				]
+			);
+		}else{
+			// multiple phones array, e.g.: [  {"phone": '15005600321'}, {"phone": '15005600323'} ]
+			this.conferenceControl("unvmute", members);
+		}
+	};
+
+	/**
+	 *  禁言会议成员
+	 **/
+	this.conferenceMuteMember = function(members) {
+		// single phone
+		if(typeof(members) === "string") {
+			this.conferenceControl("mute",
+				[
+					{"phone": members}
+				]
+			);
+		}else{
+			// multiple phones array, e.g.: [  {"phone": '15005600321'}, {"phone": '15005600323'} ]
+			this.conferenceControl("mute", members);
+		}
+	};
+
+	/**
+	 *  解禁会议成员
+	 **/
+	this.conferenceUnMuteMember = function(members) {
+		// single phone
+		if(typeof(members) === "string") {
+			this.conferenceControl("unmute",
+				[
+					{"phone": members}
+				]
+			);
+		}else{
+			// multiple phones array, e.g.: [  {"phone": '15005600321'}, {"phone": '15005600323'} ]
+			this.conferenceControl("unmute", members);
+		}
+	};
+
+	/**
+	 *  增加会议成员
+	 **/
+	this.conferenceAddMembers = function(members) {
+		this.conferenceControl("add", members)
+	};
+
+
+	/**
+	 *  移除会议成员
+	 **/
+	this.conferenceRemoveMembers = function(members) {
+		// single phone
+		if(typeof(members) === "string") {
+			var memberItemObj = $("#conf_member_" + members);
+			if($(".conf_status", memberItemObj).text() === "通话中") {
+				this.conferenceControl("remove",
+					[
+						{"phone": members}
+					]
+				);
+			}
+			memberItemObj.remove();
+		}else{
+			// multiple phones array, e.g.: [  {"phone": '15005600321'}, {"phone": '15005600323'} ]
+			this.conferenceControl("remove", members);
+		}
+	};
+
+	/**
+	 *  结束电话会议
+	 **/
+	this.conferenceEnd = function() {
+		this.conferenceControl("endconf", [])
+	};
+
+
+	/**
+	 *  电话会议控制相关操作
+	 * @param action 操作
+	 * @param phoneList 会议成员
+	 */
+	this.conferenceControl = function (action, phoneList) {
+		var cmd = {};
+		cmd.action = "conference";
+		cmd.body = { "method": action, "memberList": phoneList };
+		ws.send(JSON.stringify(cmd));
 	};
 
     /*************************  以下是通话监听相关  ***************************/

@@ -3,6 +3,7 @@ package com.telerobot.fs.service;
 import com.telerobot.fs.entity.dao.CallTaskEntity;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
+import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.RandomUtils;
 import com.telerobot.fs.utils.ThreadUtil;
@@ -21,6 +22,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RecursiveTask;
 
 @Service
 public class CallTaskService {
@@ -248,34 +250,20 @@ public class CallTaskService {
 	 ***/
 	public CallTaskEntity getTaskInfoById(int batchId) {
 		CallTaskEntity batchInfo = null;
-		String sql = "Select * from cc_call_task  where batch_id=" + batchId;
 
+		String sql = "select * from  cc_call_task as t,cc_gateways as g  where  "+
+				"  t.gateway_id = g.id and  batch_id=" + batchId;
+
+		RowMapper<CallTaskEntity> rowMapper = new BeanPropertyRowMapper<CallTaskEntity>(CallTaskEntity.class);
 		try {
-			List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-			Iterator<Map<String, Object>> it = rows.iterator();
-			while (it.hasNext()) {
-				Map<String, Object> map = (Map<String, Object>) it.next();
-				batchInfo = new CallTaskEntity();
-				batchInfo.setBatchId(Integer.parseInt(map.get("batch_id").toString()));
-				batchInfo.setGroupId(map.get("group_id").toString());
-				batchInfo.setBatchName(map.get("batch_name").toString());
-				batchInfo.setIfcall(Integer.parseInt(map.get("ifcall").toString()));
-				batchInfo.setRate(Double.parseDouble(map.get("rate").toString()));
-				batchInfo.setThreadNum(Integer.parseInt(map.get("thread_num").toString()));
-				batchInfo.setCreatetime(Long.parseLong(map.get("createtime").toString()));
-				batchInfo.setExecuting(Integer.parseInt(map.get("executing").toString()));
-				batchInfo.setStopTime(Long.parseLong(map.get("stop_time").toString()));
-				batchInfo.setUserid(map.get("userid").toString());
-				batchInfo.setTaskType(Integer.parseInt(map.get("task_type").toString()));
-				batchInfo.setGatewayId(Integer.parseInt(map.get("gateway_id").toString()));
-				batchInfo.setCallNodeNo(map.get("call_node_no").toString());
+			List<CallTaskEntity> batchList = this.jdbcTemplate.query(sql, rowMapper);
+			if(batchList.size() > 0){
+				batchInfo = batchList.get(0);
 			}
-			rows.clear();
-		} catch (Exception e) {
-			log.error("An error occurred when obtaining the data of the specified task: {} {} ",
-					e.toString(), CommonUtils.getStackTraceString(e.getStackTrace())
-			);
+		} catch (Throwable e) {
+			log.error("An error occurred when obtaining the details of outbound task：{} {}", e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
 		}
+
 		return batchInfo;
 	}
 
@@ -291,6 +279,37 @@ public class CallTaskService {
 			log.error("An error occurred when obtaining the list of outbound task batches：{} {}", e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
 		}
 		return batchList;
+	}
+
+	public GatewayConfig getGatewayConfigById(int gatewayId) {
+		GatewayConfig gatewayConfig = null;
+		String sql = "Select * from cc_gateways  where id=" + gatewayId;
+
+		try {
+			List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+			Iterator<Map<String, Object>> it = rows.iterator();
+			while (it.hasNext()) {
+				Map<String, Object> map = (Map<String, Object>) it.next();
+				gatewayConfig = new GatewayConfig();
+				gatewayConfig.setGwName(map.get("gw_name").toString());
+				gatewayConfig.setGatewayAddr(map.get("gw_addr").toString());
+				gatewayConfig.setCallProfile(map.get("profile_name").toString());
+				gatewayConfig.setCallerNumber(map.get("caller").toString());
+				gatewayConfig.setCalleePrefix(map.get("callee_prefix").toString());
+				gatewayConfig.setAudioCodec(map.get("codec").toString());
+				gatewayConfig.setConcurrency(Integer.parseInt(map.get("max_concurrency").toString()));
+				gatewayConfig.setRegister(Integer.parseInt(map.get("register").toString()) == 1);
+				gatewayConfig.setPriority(Integer.parseInt(map.get("priority").toString()));
+				gatewayConfig.setUpdateTime(Long.parseLong(map.get("update_time").toString()));
+				gatewayConfig.setUuid(map.get("id").toString());
+			}
+			rows.clear();
+		} catch (Exception e) {
+			log.error("An error occurred when obtaining the data of the specified task: {} {} ",
+					e.toString(), CommonUtils.getStackTraceString(e.getStackTrace())
+			);
+		}
+		return gatewayConfig;
 	}
 
 	/**

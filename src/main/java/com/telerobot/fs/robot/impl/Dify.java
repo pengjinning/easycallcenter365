@@ -3,6 +3,7 @@ package com.telerobot.fs.robot.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.LlmAccount;
 import com.telerobot.fs.robot.AbstractChatRobot;
@@ -27,7 +28,6 @@ public class Dify extends AbstractChatRobot {
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);
         aiphoneRes.setIfcan_interrupt(0);
-
         if(firstRound) {
             firstRound = false;
 
@@ -76,7 +76,17 @@ public class Dify extends AbstractChatRobot {
 
     private  JSONObject sendStreamingRequest(LlmAiphoneRes aiphoneRes, String question) throws IOException {
         JSONObject requestBody = new JSONObject();
-        requestBody.put("inputs", new JSONObject());
+        CustmInfoEntity custmInfoEntity= callDetail.getOutboundPhoneInfo();
+        JSONObject inputs = new JSONObject();
+        if (null != custmInfoEntity) {
+            if (StringUtils.isNotBlank(custmInfoEntity.getBizJson())) {
+                JSONObject bizJson = JSONObject.parseObject(custmInfoEntity.getBizJson());
+                for (String k: bizJson.keySet()) {
+                    inputs.put(k, bizJson.get(k));
+                }
+            }
+        }
+        requestBody.put("inputs", inputs);
         requestBody.put("query", question);
         requestBody.put("response_mode", "streaming");
         if (!StringUtils.isEmpty(chat_id)) {

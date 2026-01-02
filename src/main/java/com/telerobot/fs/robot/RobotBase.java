@@ -2,6 +2,7 @@ package com.telerobot.fs.robot;
 
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.bo.LlmConsumer;
 import com.telerobot.fs.entity.bo.RobotInteractiveParam;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
@@ -33,9 +34,42 @@ public abstract class RobotBase implements IEslEventListener {
     public static  final String  ASR_TYPE_WEBSOCKET = "websocket";
     public static final  String NO_VOICE = "NO_VOICE";
     protected AtomicInteger noVoiceCounter = new AtomicInteger(0);
+    private Semaphore playBackFinishedSignal = new Semaphore(0);
+    private boolean playBackFinishedSignalReleased = false;
+    protected synchronized void releasePlayBackFinishedSignal(){
+         if(!playBackFinishedSignalReleased){
+             playBackFinishedSignalReleased = true;
+             playBackFinishedSignal.release();
+         }
+    }
+    protected void waitForPlayBackFinished(){
+        try {
+            playBackFinishedSignalReleased = false;
+            try {
+                playBackFinishedSignal.tryAcquire(1, 181000, TimeUnit.MILLISECONDS);
+            }catch (Throwable e){
+            }
+        }catch (Throwable e){
+        }
+    }
 
     protected static int LLM_MAX_TRY = Integer.parseInt(SystemConfig.getValue("llm-max-try", "2"));
     protected AtomicInteger Llm_max_try_counter = new AtomicInteger(0);
+    /**
+     * 是否开启二次打断设置(首次讲话不立即响应，等待客户第二次说话)
+     */
+    protected  final static boolean WAIT_FOR_SECOND_VAD_DURING_INTERRUPT = Boolean.parseBoolean(SystemConfig.getValue(
+            "wait-for-second-vad-during-interrupt","false")
+    );
+
+    protected  final static int MAX_CONSECUTIVE_NO_VOICE_NUMBER = Integer.parseInt(SystemConfig.getValue(
+            "max-consecutive-no-voice-number","3")
+    );
+
+    /**
+     *  首次打断后，不响应，等待客户继续说话；
+     */
+    protected volatile boolean firstSpeak = false;
 
     /**
      *  交互轮次;
@@ -93,6 +127,8 @@ public abstract class RobotBase implements IEslEventListener {
     protected static boolean asrPauseEnabled;
 
     protected IChatRobot chatRobot;
+
+    protected LlmConsumer llmConsumer;
 
     static {
         maxWaitTimeMills = 1000 * Long.parseLong(SystemConfig.getValue("max-wait-time-after-vad-start", "25"));
@@ -186,16 +222,6 @@ public abstract class RobotBase implements IEslEventListener {
      */
     protected ArrayBlockingQueue<String> asrResultEx = new ArrayBlockingQueue<>(10);
 
-    /**
-     * 客户是否抢话机器人；[机器话术播放中，客户讲话]
-     */
-    protected volatile boolean interruptRobot = false;
-
-    /**
-     * 已经发生了打断事件
-     */
-    protected volatile boolean interruptRobotHappened = false;
-
     public void setRecordingsFileName(String recordingsFileName) {
         this.recordingsFileName = recordingsFileName;
     }
@@ -222,25 +248,25 @@ public abstract class RobotBase implements IEslEventListener {
         long secsPassedIn6SECS = System.currentTimeMillis() - playbackEndTime;
         long waitMills = 100;
         if(secsPassedIn6SECS <= 6000 && secsPassedIn6SECS > 5000){
-            waitMills = interruptRobot ? 301 : 200;
+            waitMills =  301;
         }
         if(secsPassedIn6SECS <= 5000 && secsPassedIn6SECS > 4000){
-            waitMills =  interruptRobot ? 800 : 400;
+            waitMills =  800;
         }
         if(secsPassedIn6SECS <= 4000 && secsPassedIn6SECS > 3000){
-            waitMills = interruptRobot ? 1305 : 1000;
+            waitMills =  1305;
         }
         if(secsPassedIn6SECS <= 3000 && secsPassedIn6SECS > 2000){
-            waitMills = interruptRobot ? 1500 : 1101;
+            waitMills = 1500;
         }
         if(secsPassedIn6SECS <= 2000 && secsPassedIn6SECS > 1000){
-            waitMills = interruptRobot ? 2001 : 1800;;
+            waitMills =  2001;;
         }
         if(secsPassedIn6SECS <= 1000 && secsPassedIn6SECS > 500){
-            waitMills = interruptRobot ? 2005 : 2001;
+            waitMills = 2005;
         }
         if(secsPassedIn6SECS <= 500) {
-            waitMills = 5500L;
+            waitMills = 3000;
         }
         return waitMills < interruptWaitMills ? interruptWaitMills : waitMills;
     }
@@ -251,7 +277,7 @@ public abstract class RobotBase implements IEslEventListener {
     protected EslConnectionPool eslConnectionPool;
 
     protected  boolean getAllowInterrupt(){
-        return chatRobot.getAccount().interruptFlag == 1;
+        return chatRobot.getAccount().interruptFlag > 0;
     }
 
     /**
@@ -296,6 +322,7 @@ public abstract class RobotBase implements IEslEventListener {
                 if (!isReleased) {
                     isReleased = true;
                     robotCounter.decrement();
+                    LlmThreadManager.release(llmConsumer);
                 }
             }
         }
@@ -319,29 +346,28 @@ public abstract class RobotBase implements IEslEventListener {
         releaseThreadNum();
     }
 
-    private final Semaphore waitSemaphore = new Semaphore(0);
-    protected void acquire(long... waitTimeMills) {
+    private final Object threadLocker = new Object();
+    protected void acquire(long... waitTimeMills){
         try {
-            if (waitTimeMills.length == 0) {
-                waitSemaphore.acquire();
-            } else {
-                waitSemaphore.tryAcquire(waitTimeMills[0], TimeUnit.MILLISECONDS);
+            synchronized (threadLocker) {
+                if (waitTimeMills.length == 0) {
+                    threadLocker.wait();
+                } else {
+                    threadLocker.wait(waitTimeMills[0]);
+                }
             }
         } catch (Throwable e) {
+            logger.info(getTraceId() + " thread wait failed: " + e.toString());
         }
     }
-
-    protected void acquireAllPermits() {
-        try {
-            if(waitSemaphore.availablePermits() > 0) {
-                waitSemaphore.acquire(waitSemaphore.availablePermits());
-            }
-        } catch (Throwable e) {
-        }
-    }
-
     protected void releaseSignal(){
-        waitSemaphore.release();
+        try {
+            synchronized (threadLocker) {
+                threadLocker.notifyAll();
+            }
+        }catch (Exception e) {
+            logger.info(getTraceId() + " thread notifyAll failed: " + e.toString());
+        }
     }
 
     protected volatile boolean inIvrProcess = false;
@@ -558,7 +584,7 @@ public abstract class RobotBase implements IEslEventListener {
         if (asrType.equalsIgnoreCase(ASR_TYPE_WEBSOCKET)){
             logger.info("{} send start_asr command", getTraceId());
             EslConnectionUtil.sendExecuteCommand(
-                    "start_asr",
+                     String.format("start_%s_asr",  chatRobot.getAccount().asrProvider),
                     "hello",
                     uuid,
                     this.eslConnectionPool
@@ -589,7 +615,9 @@ public abstract class RobotBase implements IEslEventListener {
     protected void pauseAsr(){
         if(asrPauseEnabled && !getAllowInterrupt()) {
             logger.info("{} try to pause Funasr  ", this.uuid);
-            EslConnectionUtil.sendExecuteCommand("pause_asr", "1", this.uuid, this.eslConnectionPool);
+            EslConnectionUtil.sendExecuteCommand(
+                    String.format("pause_%s_asr",  chatRobot.getAccount().asrProvider)
+                    , "1", this.uuid, this.eslConnectionPool);
         }
     }
 
@@ -614,11 +642,10 @@ public abstract class RobotBase implements IEslEventListener {
         return list;
     }
 
-    protected  volatile boolean speechInterruptFailed = false;
     private ArrayList<String> ignoreKeywordsListForInterrupt = null;
     private ArrayList<String> keywordsListForInterrupt = null;
     protected boolean checkSpeechInterrupt(String input) {
-        if (chatRobot.getAccount().interruptFlag == 0) {
+        if (chatRobot.getAccount().interruptFlag != 1) {
             return false;
         }
 

@@ -38,8 +38,10 @@ public class InboundDetailService {
             inboundConfig.setLlmAccountId((Integer)map.get("llm_account_id"));
             inboundConfig.setVoiceCode(map.get("voice_code").toString());
             inboundConfig.setVoiceSource(map.get("voice_source").toString());
+            inboundConfig.setAsrProvider(map.get("asr_provider").toString());
             inboundConfig.setServiceType(map.get("service_type").toString());
-            inboundConfig.setGroupId((Integer) map.get("group_id"));
+            inboundConfig.setAiTransferType(map.get("ai_transfer_type").toString());
+            inboundConfig.setAiTransferData(map.get("ai_transfer_data").toString());
             inboundConfig.setCallee(callee);
             return inboundConfig;
         }
@@ -91,7 +93,7 @@ public class InboundDetailService {
     public void updateInbound(final List<InboundDetail> dataList) {
         String sql = "UPDATE `cc_inbound_cdr` SET caller=?, callee=?, inbound_time=?, group_id=?, " +
                 "answered_time=?, extnum=?, opnum=?, hangup_time=?, answered_time_len=?, " +
-                "time_len=?, uuid=?, wav_file=?, chat_content=?  WHERE id=?";
+                "time_len=?, uuid=?, wav_file=?, chat_content=?, ivr_dtmf_digits=?  WHERE id=?";
 
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
@@ -111,7 +113,8 @@ public class InboundDetailService {
                 preparedStatement.setString(11, inbound.getUuid());
                 preparedStatement.setString(12, inbound.getWavFile());
                 preparedStatement.setString(13, inbound.getChatContent());
-                preparedStatement.setString(14, inbound.getId());
+                preparedStatement.setString(14, inbound.getIvrDtmfDigits());
+                preparedStatement.setString(15, inbound.getId());
             }
 
             @Override

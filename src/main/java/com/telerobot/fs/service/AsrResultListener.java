@@ -2,9 +2,12 @@ package com.telerobot.fs.service;
 
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
+import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.CallMonitorInfo;
 import com.telerobot.fs.entity.pojo.AsrEntity;
+import com.telerobot.fs.entity.pojo.AsrProvider;
 import com.telerobot.fs.entity.pojo.AsrResult;
+import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
@@ -119,8 +122,21 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
      * 启动一个通话的asr识别流程; 同时启动对坐席和客户的语音识别
      */
     public static void startCallAsrProcess(CallMonitorInfo callMonitorInfo) {
-        EslConnectionUtil.sendExecuteCommand("start_asr", "hello", callMonitorInfo.getUuid());
-        EslConnectionUtil.sendExecuteCommand("start_asr", "hello", callMonitorInfo.getUuidAgent());
+        String uuid = callMonitorInfo.getUuid();
+        String asrProvider = SystemConfig.getValue("fs_call_asr_engine", "funasr");
+        if(asrProvider.equalsIgnoreCase(AsrProvider.ALIYUN)) {
+            AlibabaTokenEntity token = AliyunTTSWebApi.getToken();
+            if (token != null) {
+                logger.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",
+                        uuid, token.getToken().substring(0, 7) + "*******", token.getAppkey()
+                );
+                EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
+                EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
+            }
+        }
+        logger.info("{} Try to start real-time voice recognition for call-center manual agent. asrProvider={}",uuid, asrProvider);
+        EslConnectionUtil.sendExecuteCommand(String.format("start_%s_asr", asrProvider), "hello", callMonitorInfo.getUuid());
+        EslConnectionUtil.sendExecuteCommand(String.format("start_%s_asr", asrProvider), "hello", callMonitorInfo.getUuidAgent());
 
         String uuidAgent = callMonitorInfo.getUuidAgent();
         String uuidCustomer = callMonitorInfo.getUuid();

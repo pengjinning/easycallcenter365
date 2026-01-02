@@ -8,7 +8,6 @@ import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
-import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -26,6 +25,8 @@ public abstract class AbstractChatRobot implements IChatRobot {
     protected static final String ROLE_USER = "user";
     protected static final String ROLE_SYSTEM = "system";
     protected static final String ROLE_ASSISTANT = "assistant";
+
+    private ArrayBlockingQueue<String> ttsRequestQueue = new ArrayBlockingQueue<>(200);
 
     protected volatile InboundDetail callDetail;
 
@@ -56,9 +57,9 @@ public abstract class AbstractChatRobot implements IChatRobot {
     }
 
     /**
-     *  tts通道已关闭
+     * TtsChannelState
      */
-    protected volatile boolean ttsChannelClosed = true;
+    protected volatile TtsChannelState ttsChannelState = TtsChannelState.CLOSED;
 
     protected String getTraceId(){
         return uuid;
@@ -97,11 +98,27 @@ public abstract class AbstractChatRobot implements IChatRobot {
 
     @Override
     public  void setAccount(AccountBaseEntity llmAccount){
-      this.llmAccountInfo = llmAccount;
+        this.llmAccountInfo = llmAccount;
     }
     @Override
     public AccountBaseEntity getAccount(){
-       return llmAccountInfo;
+        return llmAccountInfo;
+    }
+
+    @Override
+    public synchronized void flushTtsRequestQueue(){
+       if(TtsChannelState.OPENED.getCode().equals(ttsChannelState.getCode())) {
+           while (true) {
+               String text = ttsRequestQueue.poll();
+               if (StringUtils.isEmpty(text)) {
+                   break;
+               }
+               EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", text, uuid);
+               logger.info("{} sendTtsRequest tts_resume text {}", uuid, text);
+           }
+       }else{
+           logger.error("{} execute flushTtsRequestQueue error, ttsChannelState is not opened.", uuid);
+       }
     }
 
     @Override
@@ -116,13 +133,19 @@ public abstract class AbstractChatRobot implements IChatRobot {
                 .replace("*", " ")
                 .replace("\n", " ");
 
-        if(ttsChannelClosed) {
+        if (StringUtils.isEmpty(text)) {
+            return;
+        }
+
+        if(TtsChannelState.CLOSED.getCode().equals(ttsChannelState.getCode())) {
             EslConnectionUtil.sendExecuteCommand("speak", String.format("%s|%s|%s", ttsProvider, ttsVoiceName, text), uuid);
-            ttsChannelClosed = false;
+            ttsChannelState = TtsChannelState.TRYING_OPEN;
             logger.info("{} sendTtsRequest speak tts text {}", uuid, text);
-        }else{
-            EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", text, uuid);
-            logger.info("{} sendTtsRequest tts_resume text {}", uuid, text);
+        }else  if(TtsChannelState.OPENED.getCode().equals(ttsChannelState.getCode()))  {
+            ttsRequestQueue.add(text);
+            flushTtsRequestQueue();
+        }else  if(TtsChannelState.TRYING_OPEN.getCode().equals(ttsChannelState.getCode()))  {
+            ttsRequestQueue.add(text);
         }
     }
 
@@ -133,7 +156,7 @@ public abstract class AbstractChatRobot implements IChatRobot {
 
     @Override
     public void setTtsVoiceName(String voiceName){
-      this.ttsVoiceName = voiceName;
+        this.ttsVoiceName = voiceName;
     }
 
     /**
@@ -141,9 +164,14 @@ public abstract class AbstractChatRobot implements IChatRobot {
      */
     @Override
     public  void closeTts(){
-        if(!ttsChannelClosed) {
-            EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", "<StopSynthesis/>", uuid);
+        String cmd = "<StopSynthesis/>";
+        if(TtsChannelState.OPENED.getCode().equals(ttsChannelState.getCode()))  {
+            ttsRequestQueue.add(cmd);
+            flushTtsRequestQueue();
+        }else  if(TtsChannelState.TRYING_OPEN.getCode().equals(ttsChannelState.getCode()))  {
+            ttsRequestQueue.add(cmd);
         }
+
     }
 
     protected  void addDialogue(String role, String content){
@@ -169,8 +197,8 @@ public abstract class AbstractChatRobot implements IChatRobot {
     }
 
     @Override
-    public void setTtsChannelState(boolean closed) {
-       this.ttsChannelClosed = closed;
+    public void setTtsChannelState(TtsChannelState state) {
+        this.ttsChannelState = state;
     }
 
     @Override

@@ -6,6 +6,7 @@ import com.telerobot.fs.entity.dao.BizGroup;
 import com.telerobot.fs.entity.dao.ExtPowerConfig;
 import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AgentEx;
+import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.entity.po.AgentEntity;
 import com.telerobot.fs.entity.po.SysParams;
 import com.telerobot.fs.mybatis.dao.SysDao;
@@ -171,4 +172,5 @@ public class SysService {
 	public LlmKb getKbContentByCat(String cat){
 		return sysDao.getKbContentByCat(cat);
 	}
+
 }

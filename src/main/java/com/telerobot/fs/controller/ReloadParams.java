@@ -12,6 +12,7 @@ import com.telerobot.fs.tts.aliyun.CosyVoiceDemo;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DESUtil;
 import com.telerobot.fs.utils.DateUtils;
+import com.telerobot.fs.utils.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Scope;
@@ -202,6 +203,18 @@ public class ReloadParams {
 			return  "forbidden, only 127.0.0.1 allowed.";
 		}
 		CosyVoiceDemo.doCosyMain(null);
+		return "success";
+	}
+
+	@RequestMapping("/getAgentBusyStatusSubList")
+	@ResponseBody
+	public String getAgentBusyStatusSubList(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException, InterruptedException {
+		String list = SystemConfig.getValue("agent-busy-status", "");
+
+		if(!StringUtils.isNullOrEmpty(list)){
+			String[] tmpArray = list.split("\\|");
+
+		}
 		return "success";
 	}
 }

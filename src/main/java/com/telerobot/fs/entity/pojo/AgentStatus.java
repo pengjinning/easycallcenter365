@@ -10,38 +10,66 @@ public enum AgentStatus {
     /**
      *  刚刚上线，准备就绪中;
      */
-    justLogin("justLogin", 1),
+    justLogin("justLogin", "已签入", 1),
 
     /**
      * 空闲
      */
-    free("free", 2),
+    free("free", "置闲", 2),
 
     /**
      *  手动置忙
      */
-    busy("busy", 3),
+    busy("busy", "置忙", 3),
+
+    /**
+     *  小休
+     */
+    busy_rest("busy_rest", "小休", 31),
+
+    /**
+     *  会议
+     */
+    busy_meeting("busy_meeting","会议", 32),
+
+    /**
+     *  培训
+     */
+    busy_training("busy_training","培训", 33),
 
     /**
      * 通话中
      */
-    incall("incall", 4),
+    incall("incall", "通话中", 4),
 
     /**
      * 事后处理，填写表单中
      */
-    processing("fill_form", 5),
+    processing("fill_form","话后整理", 5),
 
     /**
-     * 会议中
+     * 多方会议中
      */
-    conference("conference", 6);
+    conference("conference","多方会议", 6),
+
+    /**
+     * 坐席预占(呼入来电锁定)
+     */
+    lockStatus("lockStatus", "预占", 4);
+
 
 
     /**
      *  状态描述
      */
     private String name;
+
+    /**
+     *  状态描述
+     */
+    private String text;
+
+
     /**
      * index
      */
@@ -57,9 +85,10 @@ public enum AgentStatus {
         return null;
     };
 
-    private AgentStatus(String name, int index) {
+    private AgentStatus(String name, String text, int index) {
         this.name = name;
         this.index = index;
+        this.text = text;
     }
 
     @Override
@@ -69,6 +98,10 @@ public enum AgentStatus {
 
     public String getName() {
         return name;
+    }
+
+    public String getText() {
+        return text;
     }
 
     public int getIndex() {

@@ -2,13 +2,19 @@
 
 truncate table  cc_call_phone;
 truncate table  cc_call_task;
-truncate table  cc_gateways;
+-- truncate table  cc_gateways;
 truncate table  cc_inbound_cdr;
-truncate table  cc_inbound_llm_account;
-truncate table  cc_llm_agent_account;
+-- truncate table  cc_inbound_llm_account;
+-- truncate table  cc_llm_agent_account;
 truncate table  cc_outbound_cdr;
 truncate table  sys_oper_log;
-update cc_params set param_value='community' where param_code='current-software-version'; 
+
+SELECT * FROM cc_tts_aliyun  WHERE voice_code LIKE 'S\\_%' ESCAPE '\\';
+delete FROM cc_tts_aliyun  WHERE voice_code LIKE 'S\\_%' ESCAPE '\\';
+
+update cc_params set param_value='' where param_code='doubao-tts-account-json' ;
+update cc_params set param_value='' where param_code='aliyun-tts-account-json' ;
+
 reset master;
 
 
@@ -16,6 +22,7 @@ reset master;
 
    a. update asr configuration:  /cc/fsconf/aliasrconf
    b. update tts configuration:  /cc/fsconf/alittsconf
+   c. update tts configuration: /cc/fsconf/doubaottsconf
    
    update above configs via admin web pages.
    

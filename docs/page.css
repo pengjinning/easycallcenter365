@@ -53,7 +53,7 @@ div,select,textarea,table td,table td,table tr{font-family:myFirstFont;font-size
     border-style: solid;   
     border-width: 1px;  
     border-color: #dfe5e7 #dfe5e7 #eef3fa #dfe5e7;  
-    width: 95%;
+    width: 700px;
     line-height: 35px;
 }
 

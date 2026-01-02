@@ -4,6 +4,7 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 
 public interface IChatRobot {
@@ -17,6 +18,8 @@ public interface IChatRobot {
     void setAccount(AccountBaseEntity llmAccount);
 
     AccountBaseEntity getAccount();
+
+    void flushTtsRequestQueue();
 
     /**
      *  talk with llm or ai-agent.
@@ -44,20 +47,20 @@ public interface IChatRobot {
     String getDialogues();
 
     /**
-     *  发送tts请求
+     *  sendTtsRequest
      * @param text
      */
     void sendTtsRequest(String text);
 
     /**
-     *  关闭tts通道
+     *  close tts channel
      */
     void closeTts();
 
     /**
      *  标记语音合成的tts通道状态
      */
-    void setTtsChannelState(boolean closed);
+    void setTtsChannelState(TtsChannelState state);
 
     void setTtsProvider(String provider);
 

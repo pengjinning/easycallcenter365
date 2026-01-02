@@ -62,6 +62,7 @@ public class AgentCc extends MsgHandlerBase {
             }
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("status", status);
+            jsonObject.put("text", agentStatus.getText());
             sendReplyToAgent(new MessageResponse(RespStatus.STATUS_CHANGED, "agent status: " + description, jsonObject));
         } else {
             sendReplyToAgent(new MessageResponse(RespStatus.SERVER_ERROR, "update agent status error."));

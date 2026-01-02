@@ -7,6 +7,8 @@ import java.util.concurrent.Semaphore;
 
 public class GatewayConfig {
 
+    private String gwName = "";
+
     private long updateTime;
 
     /**
@@ -186,6 +188,14 @@ public class GatewayConfig {
 
     public void setUpdateTime(long updateTime) {
         this.updateTime = updateTime;
+    }
+
+    public String getGwName() {
+        return gwName;
+    }
+
+    public void setGwName(String gwName) {
+        this.gwName = gwName;
     }
 
     @Override

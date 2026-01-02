@@ -16,10 +16,13 @@ public class LlmAccountParser {
         try {
             Class<?> clazz = Class.forName("com.telerobot.fs.entity.dto.llm." + accountJSON.getAccountEntity());
             AccountBaseEntity entity =  (AccountBaseEntity) JSON.parseObject(accountJSON.getAccountJson(), clazz);
+            entity.id = accountJSON.getId();
             entity.provider = accountJSON.getProviderClassName();
             entity.interruptFlag = accountJSON.getInterruptFlag();
             entity.interruptKeywords = accountJSON.getInterruptKeywords();
             entity.interruptIgnoreKeywords = accountJSON.getInterruptIgnoreKeywords();
+            entity.concurrentNum = accountJSON.getConcurrentNum();
+            entity.transferManualDigit = accountJSON.getTransferManualDigit();
             return entity;
         } catch (Throwable e) {
             logger.error("parse llmAccount error for accountId={}, {} {} ", accountJSON.getId(),

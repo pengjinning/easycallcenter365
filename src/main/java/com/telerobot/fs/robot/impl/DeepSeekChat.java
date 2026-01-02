@@ -30,6 +30,7 @@ public class DeepSeekChat extends AbstractChatRobot {
         if(firstRound) {
             firstRound = false;
             String tips = ((LlmAccount)getAccount()).getLlmTips() + "\n" + ((LlmAccount)getAccount()).getFaqContext();
+            // + "\n 本次通话的客户信息如下:" + callDetail.getOutboundPhoneInfo().getBizJson();
             addDialogue(ROLE_SYSTEM, tips);
 
             String openingRemarks = llmAccountInfo.openingRemarks;
@@ -118,6 +119,9 @@ public class DeepSeekChat extends AbstractChatRobot {
             BufferedSource source = response.body().source();
             StringBuilder responseBuilder = new StringBuilder();
 
+            Integer completionTokens = 0; // 模型生成回复转换为 Token 后的长度。
+            Integer promptTokens = 0; // 用户的输入转换成 Token 后的长度。
+
             while (!source.exhausted()) {
                 String line = source.readUtf8Line();
                 if (line != null && line.startsWith("data: ")) {
@@ -168,6 +172,12 @@ public class DeepSeekChat extends AbstractChatRobot {
                             responseBuilder.append(speechContent);
                         }
                     }
+
+                    if (null != jsonResponse.get("usage")) {
+                        JSONObject usage = jsonResponse.getJSONObject("usage");
+                        completionTokens = usage.getInteger("completion_tokens");
+                        promptTokens = usage.getInteger("prompt_tokens");
+                    }
                 }
             }
 
@@ -181,6 +191,8 @@ public class DeepSeekChat extends AbstractChatRobot {
             JSONObject finalResponse = new JSONObject();
             finalResponse.put("role", "assistant");
             finalResponse.put("content", answer);
+            finalResponse.put("completionTokens", completionTokens); // 模型生成回复转换为 Token 后的长度。
+            finalResponse.put("promptTokens", promptTokens); // 用户的输入转换成 Token 后的长度。
             aiphoneRes.setBody(answer);
             return finalResponse;
         }

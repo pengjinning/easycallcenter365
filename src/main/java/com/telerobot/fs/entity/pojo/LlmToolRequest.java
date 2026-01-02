@@ -38,12 +38,5 @@ public class LlmToolRequest {
         this.content = content;
     }
 
-    public static void main(String[] args) {
-        String json = "{\n" +
-                "    \"tool\": \"transfer_to_agent\",\n" +
-                "    \"arguments\": {  \"key\": \"计算机科学与技术\" }\n" +
-                "}";
-        LlmToolRequest request = JSON.parseObject(json, LlmToolRequest.class);
-        System.out.println(request.tool + ";" + request.arguments.getString("key"));
-    }
+
 }

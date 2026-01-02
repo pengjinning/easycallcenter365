@@ -21,6 +21,12 @@ public enum ChannelFlag {
     TRANSFER_CALL_RECV("TRANSFER_CALL_RECV", 3),
 
     /**
+     * 外线标志
+     */
+    EXTERNAL_LINE("EXTERNAL_LINE", 4),
+
+
+    /**
      *  当前通话已收到振铃媒体
      */
     RECV_RING_MEDIA ("RECV_RING_MEDIA", 999);

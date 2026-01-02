@@ -2,6 +2,8 @@ package com.telerobot.fs.entity.dto.llm;
 
  public class AccountBaseEntity {
 
+    public int id;
+
     public String serverUrl;
 
     public String provider;
@@ -31,9 +33,21 @@ package com.telerobot.fs.entity.dto.llm;
 
     public String voiceCode;
 
+    public String asrProvider;
+
+    /**
+     * way of transferring to manual:  acd、extension、gateway
+     */
+    public String aiTransferType;
+
+    /**
+     *  Data of specific manual transfer methods
+     */
+    public String aiTransferData;
+
     /**
      *   voice interruption supported during the robot's speech:
-     *   1：yes, 0：no
+     *   1: Keyword interruption, 0: No interruption, 2: Interrupt if there is a sound
      */
     public int interruptFlag;
 
@@ -46,4 +60,8 @@ package com.telerobot.fs.entity.dto.llm;
      *  List of keywords excluded from triggering speech interruption.
      */
     public String interruptIgnoreKeywords;
+
+    public int concurrentNum;
+
+    public String transferManualDigit;
 }

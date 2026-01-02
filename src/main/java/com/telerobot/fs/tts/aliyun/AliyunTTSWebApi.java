@@ -6,6 +6,7 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.AliyunTtsAccount;
 import com.telerobot.fs.utils.StringUtils;
+import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import okhttp3.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +84,19 @@ public class AliyunTTSWebApi {
             log.error("Aliyun tts合成失败：{}", e.toString());
             return false;
         }
+    }
+
+    public static boolean setAliyunTokenToFreeSWITCH(String uuid){
+        AlibabaTokenEntity token = getToken();
+        if (token != null) {
+            log.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",
+                    uuid, token.getToken().substring(0, 7) + "*******", token.getAppkey()
+            );
+            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
+            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
+            return true;
+        }
+        return false;
     }
 
     public static AlibabaTokenEntity getToken(){

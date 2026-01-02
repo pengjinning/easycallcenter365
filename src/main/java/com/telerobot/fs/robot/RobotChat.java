@@ -7,11 +7,16 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.bo.LlmConsumer;
 import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.entity.po.CdrDetail;
+import com.telerobot.fs.entity.pojo.AsrProvider;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
+import com.telerobot.fs.entity.pojo.TtsProvider;
+import com.telerobot.fs.global.CdrPush;
 import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
 import com.telerobot.fs.utils.CommonUtils;
@@ -26,7 +31,6 @@ import org.apache.commons.lang.StringUtils;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author easycallcenter365@126.com 
@@ -72,44 +76,56 @@ public class RobotChat extends RobotBase {
         if(getAllowInterrupt() && ASR_TYPE_MRCP.equalsIgnoreCase(this.getAsrModelType())){
             logger.error("{} `robot-speech-interrupt-allowed`  is not effective in the mrcp speech recognition mode.", uuid);
         }
+
+        EslConnectionUtil.sendExecuteCommand(
+                "playback",
+                "$${sounds_dir}/ivr/llm_wait.wav",
+                uuid
+        );
+        long startTime = System.currentTimeMillis();
+        logger.info("{} Try to acquire llm permit, llmAccountInfo.id={}, llmAccountInfo.concurrentNum={}.",
+                getTraceId(),  llmAccountInfo.id, llmAccountInfo.concurrentNum);
+        llmConsumer = new LlmConsumer(uuid, llmAccountInfo.id, llmAccountInfo.concurrentNum);
+        LlmThreadManager.acquire(llmConsumer);
+        logger.info("{} Acquire llm permit successfully, took {} milliseconds. ", getTraceId(),
+                  System.currentTimeMillis() - startTime
+        );
+        interruptRobotSpeech();
     }
 
-    private void setRecordings(String mediaFile){
-        String recordDir = SystemConfig.getValue("recording_path", "/home/Records/");
-        EslConnectionUtil.sendExecuteCommand(
-                "record_session",
-                recordDir + mediaFile,
-                uuid,
-                EslConnectionUtil.getDefaultEslConnectionPool()
-        );
-        logger.info("{} start record_session wav/mp4 {}{}", callDetail.getUuid(), recordDir , mediaFile);
 
-        //设置bridge后不挂机;
-        EslConnectionUtil.sendExecuteCommand(
-                "set",
-                "hangup_after_bridge=false",
-                uuid,
-                EslConnectionUtil.getDefaultEslConnectionPool()
-        );
-    }
 
-    public void startProcess(String uniqueID, String mediaFile) {
-
-        if(!StringUtils.isEmpty(mediaFile)) {
-            setRecordings(mediaFile);
+    public void startProcess(String uniqueID) {
+        if(callDetail.getOutboundPhoneInfo() != null) {
+            // In the outbound call scenario, solve the problem that the first few words of the first sentence
+            // cannot be heard clearly, because it takes about 2 seconds for the customer to transfer from
+            // the receiver to the headphones after answering the call.
+            ThreadUtil.sleep(1500);
+            if (isHangup) {
+                return;
+            }
         }
 
-        AlibabaTokenEntity token = AliyunTTSWebApi.getToken();
-        if(token != null) {
-            logger.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",
-                    uuid,  token.getToken().substring(0, 7) + "*******", token.getAppkey()
-            );
-            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
-            EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
-        }else{
-            logger.error("{}  AliyunTTSWebApi getToken error!", getTraceId());
-            hangupAndCloseConn();
-            return;
+        String ttsProvider =  chatRobot.getAccount().voiceSource;
+        String asrProvider =  chatRobot.getAccount().asrProvider;
+        if(ttsProvider.equalsIgnoreCase(TtsProvider.ALIYUN) || asrProvider.equalsIgnoreCase(AsrProvider.ALIYUN)) {
+             if((!AliyunTTSWebApi.setAliyunTokenToFreeSWITCH(uuid))) {
+                logger.error("{}  AliyunTTSWebApi getToken error!", getTraceId());
+                hangupAndCloseConn();
+                return;
+            }
+        }
+
+        if(ttsProvider.equalsIgnoreCase(TtsProvider.DOUBAO)) {
+            logger.info("{}  Current tts provider is doubao!", getTraceId());
+        }
+
+        if(ttsProvider.equalsIgnoreCase(TtsProvider.MICROSOFT)) {
+            logger.info("{}  Current tts provider is microsoft!", getTraceId());
+        }
+
+        if(ttsProvider.equalsIgnoreCase(TtsProvider.CHINA_TELECOM)) {
+            logger.info("{}  Current tts provider is china_telecom!", getTraceId());
         }
 
         EslMessage apiResponseMsg = EslConnectionUtil.sendSyncApiCommand(
@@ -133,6 +149,8 @@ public class RobotChat extends RobotBase {
         interactWithRobot();
     }
 
+
+
     protected void processFsMsgEx(Map<String, String> headers) {
         String eventName = headers.get("Event-Name");
 
@@ -147,32 +165,73 @@ public class RobotChat extends RobotBase {
         String eventSubClass = headers.get("Event-Subclass");
         logger.info("{}  Event-Name：{} ", getTraceId(), eventName);
         if(EventNames.PLAYBACK_START.equalsIgnoreCase(eventName)){
-
-            long timeSpent =  System.currentTimeMillis() - playbackStartTime;
-            logger.info("{} PLAYBACK_START event,  time cost = {} ms. ", getTraceId(), timeSpent);
-
+            String appData = headers.get("variable_current_application_data");
+            if(!StringUtils.isEmpty(appData) && !appData.contains(".wav")) {
+                chatRobot.setTtsChannelState(TtsChannelState.OPENED);
+                chatRobot.flushTtsRequestQueue();
+                long timeSpent = System.currentTimeMillis() - playbackStartTime;
+                logger.info("{} PLAYBACK_START event,  time cost = {} ms. ", getTraceId(), timeSpent);
+            }
         }else if(EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName))
         {
             logger.info("{} recv CHANNEL_PARK event. ", uuid);
         }
         else if (EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)) {
-            recvPlayBackEndEvent = true;
-            playbackEndTime = System.currentTimeMillis();
-            releaseSignal();
-            logger.info("{} streaming tts playback finished.", getTraceId());
+            String appData = headers.get("variable_current_application_data");
+            if(!StringUtils.isEmpty(appData) && !appData.contains(".wav")) {
+                chatRobot.setTtsChannelState(TtsChannelState.CLOSED);
+                recvPlayBackEndEvent = true;
+                playbackEndTime = System.currentTimeMillis();
+                releasePlayBackFinishedSignal();
+                logger.info("{} streaming tts playback finished.", getTraceId());
+            }
 
-             if(recvHangupSignal){
-                 EslConnectionUtil.sendExecuteCommand(
-                         "hangup",
-                         "recvHangupSignal",
-                         uuid,
-                         this.eslConnectionPool
-                 );
+            if(recvHangupSignal){
+                 logger.info("{} The hang signal was received in the previous interaction process, and the call is about to hang up.",
+                         getTraceId());
+                hangupAndCloseConn();
+             }
+        }else if (EventNames.DTMF.equalsIgnoreCase(eventName)) {
+            // get the dtmf key to check if its value is the same as
+            // the key configured for manual transferring in the system.
+            String digit = headers.get("DTMF-Digit");
+             logger.info("{} recv DTMF event, digit = {}", getTraceId(), digit);
+             String transferManualDigit = chatRobot.getAccount().transferManualDigit;
+             if(transferManualDigit.equalsIgnoreCase(digit)){
+                 logger.info("{} DTMF digit equals transferManualDigit.", getTraceId());
+                 transferToAgent = true;
+                 if (recvPlayBackEndEvent || getAllowInterrupt()) {
+                     logger.info("{} The digit-key during call have successfully activated the condition " +
+                                        "for transferring to a human operator. recvPlayBackEndEvent={}, getAllowInterrupt()={} ",
+                                 getTraceId(), recvPlayBackEndEvent, getAllowInterrupt()
+                             );
+                     if(getAllowInterrupt() && !recvPlayBackEndEvent) {
+                         interruptRobotSpeech();
+                         releasePlayBackFinishedSignal();
+                         ThreadUtil.sleep(100);
+                     }
+
+                     releaseSignal();
+
+                     getRobotMainThreadPool().execute(new Runnable() {
+                         @Override
+                         public void run() {
+                             doTransferToManualAgent(null);
+                         }
+                     });
+
+                 }else {
+                     logger.info("{} The digit-key during call have been failed to activate the condition " +
+                                     "for transferring to a human operator. recvPlayBackEndEvent={}, getAllowInterrupt()={} ",
+                             getTraceId(), recvPlayBackEndEvent, getAllowInterrupt()
+                     );
+                 }
              }
         }else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
             if(isHangup){
                 return;
             }
+            releasePlayBackFinishedSignal();
             releaseSignal();
             isHangup = true;
             // 挂机后立即释放通道
@@ -187,12 +246,25 @@ public class RobotChat extends RobotBase {
                 logger.info("{}  save cdr error: {}, {} ", getTraceId(), e.toString(),
                         CommonUtils.getStackTraceString(e.getStackTrace()));
             }
+
+            if(!transferToAgent){
+                CdrDetail cdrRecord = new CdrDetail();
+                cdrRecord.setUuid(uuid);
+                if(callDetail.getOutboundPhoneInfo() == null) {
+                    cdrRecord.setCdrType("inbound");
+                }else{
+                    cdrRecord.setCdrType("outbound");
+                }
+                cdrRecord.setCdrBody(JSON.toJSONString(callDetail));
+                CdrPush.addCdrToQueue(cdrRecord);
+            }
+
         } else if ("CUSTOM".equalsIgnoreCase(eventName) && (
                 "TtsEvent".equalsIgnoreCase(eventSubClass)
         )) {
            String event = headers.get("Tts-Event-Detail");
            if("Speech-Closed".equalsIgnoreCase(event)){
-               chatRobot.setTtsChannelState(true);
+               chatRobot.setTtsChannelState(TtsChannelState.CLOSED);
                logger.info("{}  TtsChannelClosed = true.", getTraceId());
                ttsChannelClosed = true;
            }
@@ -213,7 +285,6 @@ public class RobotChat extends RobotBase {
             }
 
             if (!getAllowInterrupt() && !recvPlayBackEndEvent) {
-                interruptRobot = true;
                 if ("vad".equalsIgnoreCase(speechEvent)) {
                     dropAsrCounter.incrementAndGet();
                     logger.info("{} (vad event) drop asr result: {}", getTraceId(), asrResponse);
@@ -222,6 +293,7 @@ public class RobotChat extends RobotBase {
                 }
                 return;
             }
+
             if ("middle".equalsIgnoreCase(speechEvent)) {
                 logger.info("{}  ** asr-websocket, begin-speaking **  {}", getTraceId(), asrResponse);
                 logger.info("{} recv asr middle result event, recvPlayBackEndEvent={}, allowInterrupt={}, !checkSpeaking={}",
@@ -236,8 +308,13 @@ public class RobotChat extends RobotBase {
                             if (!interactiveParam.checkInSpeaking()) {
                                 interactiveParam.setInSpeaking(true);
                                 // Main thread awakened to extend customer speaking time beyond 6 seconds.
-                                logger.info("{} customer speech detected, resume the main thread. ", getTraceId());
-                                releaseSignal();
+                                logger.info("{} customer speech detected. ", getTraceId());
+
+                                if (chatRobot.getAccount().interruptFlag == 2) {
+                                    interruptRobotSpeech();
+                                    releasePlayBackFinishedSignal();
+                                    ThreadUtil.sleep(100);
+                                }
                             }
                         }
                     }
@@ -246,26 +323,28 @@ public class RobotChat extends RobotBase {
                 logger.info("{}  ** vad end-speaking:  {}", getTraceId(), asrResponse);
                 interactiveParam.setInSpeaking(false);
 
-                if(getAllowInterrupt() && !recvPlayBackEndEvent) {
-                    if (checkSpeechInterrupt(asrResponse)) {
-                        interruptRobotSpeech();
-                    } else {
-                        speechInterruptFailed = true;
-                        releaseSignal();
-                        return;
-                    }
+                if(StringUtils.isEmpty(asrResponse)){
+                    logger.error("{} error, vad result is null.", getTraceId());
+                    return;
                 }
 
                 if (!StringUtil.isNullOrEmpty(asrResponse)) {
                     asrResultEx.add(asrResponse);
                 }
 
-                if (recvPlayBackEndEvent || getAllowInterrupt()) {
+                if(chatRobot.getAccount().interruptFlag == 1 && !recvPlayBackEndEvent) {
+                    if (checkSpeechInterrupt(asrResponse)) {
+                        interruptRobotSpeech();
+                        releasePlayBackFinishedSignal();
+                        ThreadUtil.sleep(100);
+                    }else{
+                        return;
+                    }
+                }
+
+                if(recvPlayBackEndEvent || getAllowInterrupt()){
                     logger.info("{} releaseSignal for vad event.", getTraceId());
                     releaseSignal();
-                } else {
-                    logger.info("{} Neither [playback finished] or  [AllowInterrupt] is true, No signal will be sent to main thread, recvPlayBackEndEvent=false, AllowInterrupt={} ",
-                            getTraceId(), getAllowInterrupt());
                 }
 
             }
@@ -405,7 +484,7 @@ public class RobotChat extends RobotBase {
         ThreadLocalTraceId.getInstance().setTraceId(getTraceId());
         interactiveParam.setAllowInterrupt(0);
         recvPlayBackEndEvent = false;
-        speechInterruptFailed = false;
+        firstSpeak = false;
         interactiveParam.setInSpeaking(false);
 
         if(getAsrModelType().equalsIgnoreCase(ASR_TYPE_WEBSOCKET)) {
@@ -429,15 +508,21 @@ public class RobotChat extends RobotBase {
                 String question = asrStr.toString();
                 if (StringUtils.isEmpty(question)) {
                     int counter = noVoiceCounter.incrementAndGet();
-                    if (counter > 3) {
+                    if (counter > MAX_CONSECUTIVE_NO_VOICE_NUMBER) {
+                        logger.info("{} There has been no sound for {} consecutive times. Play hangupTips and then hangup call.",
+                                getTraceId(), MAX_CONSECUTIVE_NO_VOICE_NUMBER);
                         chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
                         chatRobot.closeTts();
-                        acquireAllPermits();
-                        acquire(9000);
-                        hangupAndCloseConn();
+                        recvHangupSignal = true;
                         return;
                     }
+                }else{
+                    if(noVoiceCounter.get() > 1) {
+                        noVoiceCounter.set(0);
+                    }
                 }
+
+
                 logger.info("{} send question to chatRobot: {}", getTraceId(), question);
                 aiphoneRes = chatRobot.talkWithAiAgent(question);
                 while ((aiphoneRes == null || aiphoneRes.getStatus_code() == 0)
@@ -465,7 +550,7 @@ public class RobotChat extends RobotBase {
                         getTraceId(), spentCost, JSON.toJSONString(aiphoneRes)
                 );
 
-                if( aiphoneRes.getStatus_code() == 1) {
+                if(aiphoneRes != null && aiphoneRes.getStatus_code() == 1) {
 
                     ttsChannelClosed = false;
                     String body = aiphoneRes.getBody();
@@ -481,37 +566,7 @@ public class RobotChat extends RobotBase {
                     }
 
                     if (aiphoneRes.getTransferToAgent() == 1) {
-                        transferToAgent = true;
-                        InboundDetail callDetailNew = new InboundDetail(
-                                UuidGenerator.GetOneUuid(),
-                                callDetail.getCaller(),
-                                callDetail.getCallee(),
-                                System.currentTimeMillis(),
-                                callDetail.getUuid(),
-                                callDetail.getWavFile(),
-                                callDetail.getGroupId(),
-                                String.valueOf(callDetail.getRemoteVideoPort()),
-                                callDetail.getOutboundPhoneInfo()
-                        );
-                        logger.info("{} stop_asr process.", uuid);
-                        if(StringUtils.isEmpty(body)){
-                            chatRobot.sendTtsRequest(chatRobot.getAccount().transferToAgentTips);
-                        }
-                        chatRobot.closeTts();
-                        // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
-                        EslConnectionUtil.sendExecuteCommand("stop_asr", "", uuid);
-                        acquireAllPermits();
-                        acquire(5000);
-                        // wait for tips playback finished
-                        while (!ttsChannelClosed && !isHangup) {
-                            ThreadUtil.sleep(1000);
-                        }
-
-                        if(!isHangup) {
-                            this.processFsMsg(this.generateHangupEvent("transferToAgent"));
-                            AppContextProvider.getBean(InboundDetailService.class).insertInbound(callDetailNew);
-                            TransferToAgent.transfer(callDetailNew);
-                        }
+                        doTransferToManualAgent(aiphoneRes.getBody());
                         return;
                     }
 
@@ -520,7 +575,6 @@ public class RobotChat extends RobotBase {
                             chatRobot.sendTtsRequest(chatRobot.getAccount().hangupTips);
                         }
                         chatRobot.closeTts();
-                        acquireAllPermits();
                         acquire(9000);
                         while (!ttsChannelClosed && !isHangup) {
                             ThreadUtil.sleep(1000);
@@ -539,7 +593,7 @@ public class RobotChat extends RobotBase {
             }
 
 
-        if(aiphoneRes.getIfcan_interrupt() == 1) {
+        if(aiphoneRes != null && aiphoneRes.getIfcan_interrupt() == 1) {
             interactiveParam.setAllowInterrupt(1);
             logger.info("{} allowSpeechInterrupt={}", getTraceId(), 1);
         }
@@ -550,57 +604,92 @@ public class RobotChat extends RobotBase {
                 interactiveParam.setInHangUpState(true);
                 recvHangupSignal = true;
             } else {
-                acquireAllPermits();
                 waitForCustomerSpeakEx();
             }
         }
     }
 
-    private void  waitAndDetectSpeaking(long tinyDelay){
-        if (isHangup) {
-            return;
-        }
-        if(tinyDelay > 10L) {
-            acquireAllPermits();
-            acquire(tinyDelay);
-        }
+    private void  waitAndDetectSpeaking(){
         if (interactiveParam.checkInSpeaking()){
             logger.info("{} Speaking is detected, Wait for customer to finish speaking. Timeout: {} ",
                     getTraceId(),
                     maxWaitTimeMills
             );
-            acquireAllPermits();
             acquire(maxWaitTimeMills);
         }
+    }
+
+    private void doTransferToManualAgent(String audioTipsText){
+        transferToAgent = true;
+        InboundDetail callDetailNew = new InboundDetail(
+                UuidGenerator.GetOneUuid(),
+                callDetail.getCaller(),
+                callDetail.getCallee(),
+                System.currentTimeMillis(),
+                callDetail.getUuid(),
+                callDetail.getWavFile(),
+                callDetail.getGroupId(),
+                String.valueOf(callDetail.getRemoteVideoPort()),
+                callDetail.getOutboundPhoneInfo()
+        );
+        callDetailNew.setChatContent(chatRobot.getDialogues());
+        logger.info("{} stop_asr process.", uuid);
+        if(StringUtils.isEmpty(audioTipsText)){
+            String tips = chatRobot.getAccount().transferToAgentTips;
+            logger.info("{} Try to play tts  transferToAgentTips {}", getTraceId(), tips);
+            chatRobot.sendTtsRequest(tips);
+        }
+        chatRobot.closeTts();
+        // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
+        logger.info("{} Try to stop asr {}", getTraceId(), chatRobot.getAccount().asrProvider);
+        EslConnectionUtil.sendExecuteCommand(
+                String.format("stop_%s_asr",  chatRobot.getAccount().asrProvider), "", uuid);
+        acquire(5000);
+        // wait for tips playback finished
+        ThreadUtil.sleep(1000);
+
+        if(!isHangup) {
+            this.processFsMsg(this.generateHangupEvent("transferToAgent"));
+            AppContextProvider.getBean(InboundDetailService.class).insertInbound(callDetailNew);
+            TransferToAgent.transfer(callDetailNew, chatRobot.getAccount().aiTransferType, chatRobot.getAccount().aiTransferData );
+        }
+    }
+
+    /**
+     * Check if the call has been hung up or has been transferred to a human handler.
+     * @return
+     */
+    private boolean checkCallSession(){
+        return isHangup || transferToAgent;
     }
 
     /**
      * Play TTS and wait for the customer to speak.
      */
     private void waitForCustomerSpeakEx() {
-        speechInterruptFailed = false;
-        if (isHangup) {
+        if (checkCallSession()) {
             return;
         }
 
-        logger.info("{} enter into waitForCustomerSpeak ...", getTraceId());
+        logger.info("{} enter into waitForCustomerSpeak  ...", getTraceId());
 
         // The duration of streaming TTS playback should not exceed 181 seconds.
-        if(!recvPlayBackEndEvent) {
-            acquire(181000);
+        if (!recvPlayBackEndEvent) {
+            logger.info("{} enter into waitForPlayBackFinished  ...", getTraceId());
+            waitForPlayBackFinished();
         }
 
-        if (isHangup) {
+        if (checkCallSession()) {
             return;
         }
 
-        if(!recvPlayBackEndEvent) {
+        if (!recvPlayBackEndEvent) {
             logger.info("{} robot speech interrupt detected. ", getTraceId());
-        }else{
+        } else {
             logger.info("{} robot speech playback finished. ", getTraceId());
         }
 
-        if(getAsrModelType().equalsIgnoreCase(ASR_TYPE_WEBSOCKET)) {
+        if (getAsrModelType().equalsIgnoreCase(ASR_TYPE_WEBSOCKET)) {
             resumeAsr();
         }
         if (getAsrModelType().equalsIgnoreCase(ASR_TYPE_MRCP)) {
@@ -608,24 +697,31 @@ public class RobotChat extends RobotBase {
         }
 
         long startWaitTimeMills = System.currentTimeMillis();
+        logger.info("{} wait for customer speaking  ...", getTraceId());
 
-        acquireAllPermits();
-        acquire(6000);
-        if (isHangup) {
+        acquire(7000);
+
+        logger.info("{} wait for customer speaking, time passed = {}ms.  ...",
+                getTraceId(),
+                System.currentTimeMillis() - startWaitTimeMills
+        );
+
+        if (checkCallSession()) {
             return;
         }
 
-        if(speechInterruptFailed && !recvPlayBackEndEvent){
-            waitForCustomerSpeakEx();
-            return;
-        }
 
-        // If speech is detected within 6 seconds, continue waiting.
-        waitAndDetectSpeaking(10);
+        logger.info("{} enter into waitAndDetectSpeaking  ...", getTraceId());
+        // If speech is detected within 7 seconds, continue waiting.
+        waitAndDetectSpeaking();
+
         logger.info(getTraceId() + " Robot main thread has woken up.");
 
+        if (checkCallSession()) {
+            return;
+        }
 
-        if (!interactiveParam.checkInSpeaking() && !getAllowInterrupt() ) {
+        if (!interactiveParam.checkInSpeaking()) {
             // 前面的流程都正常，客户讲话有中间结果，且有最终的vad结果;
             // 根据vad结果产生不同的时间段，计算不同的应继续等待时间;
             long waitMills = calcWaitSecsDuration6Secs();
@@ -634,51 +730,41 @@ public class RobotChat extends RobotBase {
                         getTraceId(),
                         waitMills
                 );
-                acquireAllPermits();
                 acquire(waitMills);
-                waitAndDetectSpeaking(10);
+                logger.info("{} enter into waitAndDetectSpeaking  ...", getTraceId());
+                waitAndDetectSpeaking();
+            }
+        }else{
+            // The customer's speech is not over yet.
+            logger.info("{} Oh, it seems that the customer might still be speaking. ", uuid);
+            while (interactiveParam.checkInSpeaking()){
+               acquire(100);
             }
         }
 
-        if (!isHangup) {
-            if (!recvPlayBackEndEvent) {
-                if (getAllowInterrupt()) {
-                    logger.info("{} Detected customer interruption during robot's speech playback,  continue to wait for the customer to complete the speech {} ms",
-                            getTraceId(),
-                            interruptWaitMills
-                    );
-                    // 检测到客户打断之后，继续等待看客户是否有继续讲话，如果有则继续等待；
-                    acquireAllPermits();
-                    acquire(interruptWaitMills);
-                    if (interactiveParam.checkInSpeaking()) {
-                        acquireAllPermits();
-                        acquire(maxWaitTimeMills);
-                    }
-                    interruptRobotHappened = true;
-                }
-            }
-
-            //如果没有接收到asr识别结果，则延迟下，继续等待0.5秒钟：
-            if (asrResultEx.size() == 0) {
-                acquireAllPermits();
-                acquire(500);
-            }
-
-            if (isHangup) {
-                return;
-            }
-
-            if (asrResultEx.size() == 0) {
-                logger.info("{} No asr result got: NO_VOICE ", getTraceId());
-            } else {
-                calleeSpeakNumber.incrementAndGet();
-            }
-            interactRounds.incrementAndGet();
-
-            int muteTimeLong = (int) (System.currentTimeMillis() - startWaitTimeMills);
-            logger.info("{} The time spent waiting for the customer to finish speaking is {} ms.",getTraceId(), muteTimeLong);
-            interactWithRobot();
+        if (checkCallSession()) {
+            return;
         }
+
+        //如果没有接收到asr识别结果，则延迟下，继续等待0.5秒钟：
+        if (asrResultEx.size() == 0) {
+            acquire(500);
+        }
+
+        if (checkCallSession()) {
+            return;
+        }
+
+        if (asrResultEx.size() == 0) {
+            logger.info("{} No asr result got: NO_VOICE ", getTraceId());
+        } else {
+            calleeSpeakNumber.incrementAndGet();
+        }
+        interactRounds.incrementAndGet();
+
+        int muteTimeLong = (int) (System.currentTimeMillis() - startWaitTimeMills);
+        logger.info("{} The time spent waiting for the customer to finish speaking is {} ms.", getTraceId(), muteTimeLong);
+        interactWithRobot();
     }
 
 

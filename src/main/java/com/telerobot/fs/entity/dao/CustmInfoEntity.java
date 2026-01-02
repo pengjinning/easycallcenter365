@@ -34,6 +34,7 @@ public class CustmInfoEntity {
 	private volatile boolean hangup = false;
 	private volatile String ttsText;
 	private volatile String emptyNumberDetectionText = "";
+	private volatile String ivrDtmfDigits = "";
 
 	/**
 	 * The call has been taken over by a robot
@@ -276,6 +277,14 @@ public class CustmInfoEntity {
 
 	public void setEmptyNumberDetectionText(String emptyNumberDetectionText) {
 		this.emptyNumberDetectionText = emptyNumberDetectionText;
+	}
+
+	public String getIvrDtmfDigits() {
+		return ivrDtmfDigits;
+	}
+
+	public void setIvrDtmfDigits(String ivrDtmfDigits) {
+		this.ivrDtmfDigits = ivrDtmfDigits;
 	}
 
 	@Override

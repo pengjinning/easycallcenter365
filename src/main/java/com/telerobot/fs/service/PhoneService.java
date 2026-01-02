@@ -35,7 +35,8 @@ public class PhoneService {
 				"acd_opnum = ?, " +
 				"acd_queue_time = ?, " +
 				"acd_wait_time = ?, " +
-				"empty_number_detection_text = ? " +
+				"empty_number_detection_text = ?, " +
+				"ivr_dtmf_digits = ? " +
 				"WHERE id = ?";
 
 		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
@@ -61,7 +62,8 @@ public class PhoneService {
 				ps.setLong(17, cp.getAcdQueueTime());
 				ps.setInt(18, cp.getAcdWaitTime());
 				ps.setString(19, cp.getEmptyNumberDetectionText());
-				ps.setString(20, cp.getId()); // WHERE id=?
+				ps.setString(20, cp.getIvrDtmfDigits());
+				ps.setString(21, cp.getId()); // WHERE id=?
 			}
 
 			@Override

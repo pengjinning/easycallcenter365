@@ -25,7 +25,7 @@ public class InboundDetail {
     private volatile String wavFile = "";
     private volatile String chatContent = "";
     private volatile CustmInfoEntity outboundPhoneInfo = null;
-
+    private volatile String ivrDtmfDigits = "";
     /**
      *  如果该字段不为零，则是视频通话，否则为音频通话
      */
@@ -190,5 +190,16 @@ public class InboundDetail {
 
     public void setOutboundPhoneInfo(CustmInfoEntity outboundPhoneInfo) {
         this.outboundPhoneInfo = outboundPhoneInfo;
+    }
+
+    public String getIvrDtmfDigits() {
+        return ivrDtmfDigits;
+    }
+
+    public void setIvrDtmfDigits(String ivrDtmfDigits) {
+        this.ivrDtmfDigits = ivrDtmfDigits;
+        if(getOutboundPhoneInfo() != null){
+            getOutboundPhoneInfo().setIvrDtmfDigits(ivrDtmfDigits);
+        }
     }
 }

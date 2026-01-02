@@ -13,4 +13,6 @@ public class LlmAgentAccount {
     private int interruptFlag;
     private String interruptKeywords;
     private String interruptIgnoreKeywords;
+    private int concurrentNum;
+    private String transferManualDigit;
 }
