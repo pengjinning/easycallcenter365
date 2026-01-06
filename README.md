@@ -124,22 +124,6 @@ SOURCE /home/easycallcenter365.sql;
 目前支持 websocket、mrcp 语音识别方式。目前 mod_funasr 支持 websocket 方式对接funasr语音识别。 
 mrcp 语音识别方式，支持阿里云语音识别。  
 注意：目前mrcp语音识别方式，无法实现对机器人语音的打断功能。  
-  
-
-### 如何设置转接到外部网关  
-
-在AI通话中，如果用户明确表达了转人工的诉求，系统会自动转人工坐席。
-登录可视化web管理后台，找到菜单: "呼叫管理" -> "参数设置"。
-
-* 参数 `transfer-to-agent-type` 的值设置为 `gateway`。
-
-* 参数 `transfer-to-agent-gateway-number` 的值设置为转人工的号码，比如 15005600327 或者一个固话号码。
-
-* 参数 `transfer-to-agent-gateway-info` 设置转人工网关的参数。 比如：
-```txt
-gatewayAddr=192.168.14.252:5090&caller=64901409&profile=external&calleePrefix=
-```
-这里解释下，`gatewayAddr` 是网关地址及端口，`caller` 是主叫号码，`profile` 是外呼时的路由profile，`calleePrefix` 是被叫前缀。
 
   
 ### 如何设置转内置人工坐席
