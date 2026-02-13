@@ -117,12 +117,11 @@ public class InboundGroupHandler {
 					continue;
 				}
 
-				log.info("{} try to assign call", call.getTraceId());
+				log.info("{} try to assign call, groupId={}.", call.getTraceId(), groupId);
 
 				int printerCounter = 0;
 				// get free agent and assign call
-				boolean answered = call.getInboundDetail().getAnsweredTime() > 0L;
-				while (!disposed && !call.getInboundDetail().getHangup() && !answered) {
+				while (!disposed && !call.getInboundDetail().getHangup()) {
 					List<SessionEntity> agentList = AppContextProvider.getBean(SysService.class).getFreeUserList(groupId);
 					int agentNum =  agentList.size();
 				    if(agentNum > 0){

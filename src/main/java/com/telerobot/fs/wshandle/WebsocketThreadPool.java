@@ -22,7 +22,7 @@ public class WebsocketThreadPool {
 	}
 
 	private static final Logger logger = LoggerFactory.getLogger(WebsocketThreadPool.class);
-	private static ThreadPoolExecutor executorService = null;
+	private static volatile ThreadPoolExecutor executorService = null;
 	private static final Object lockHelperThreadPool = new Object();
 	public static class MyRejectPolicy implements RejectedExecutionHandler {
 		private final Object lockHelper = new Object();

@@ -126,7 +126,7 @@ public class RespStatus {
     /**
      * 产生asr语音识别结果
      */
-    public static final int ASR_RESULT_GENERATE =  619;
+    public static final int ASR_RESULT_GENERATED =  619;
 
     /**
      * ASR语音识别流程结束（坐席侧）

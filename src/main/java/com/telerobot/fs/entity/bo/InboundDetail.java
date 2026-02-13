@@ -1,8 +1,12 @@
 package com.telerobot.fs.entity.bo;
 
+import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.annotation.JSONField;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.utils.StringUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class InboundDetail {
 
@@ -12,6 +16,8 @@ public class InboundDetail {
     private volatile long inboundTime = 0L;
     private volatile String groupId = "";
     private volatile long answeredTime = 0L;
+    private volatile boolean transferredSucceed = false;
+    private volatile long manualAnsweredTime = 0L;
     private volatile String extnum ="";
     private volatile String opnum = "";
     private volatile long hangupTime = 0L;
@@ -19,13 +25,17 @@ public class InboundDetail {
     private volatile boolean hangup;
     @JSONField(serialize=false)
     private volatile long transferTime = 0L;
-    private volatile long answeredTimeLen;
+    private volatile long answeredTimeLen = 0L;
+    private volatile long manualAnsweredTimeLen = 0L;
     private volatile long timeLen = 0;
     private volatile String uuid = "";
     private volatile String wavFile = "";
-    private volatile String chatContent = "";
+    private volatile List<JSONObject> chatContent = new ArrayList<>(20);
     private volatile CustmInfoEntity outboundPhoneInfo = null;
     private volatile String ivrDtmfDigits = "";
+    private volatile String hangupCause = "";
+    private volatile boolean startDtmfExecuted = false;
+
     /**
      *  如果该字段不为零，则是视频通话，否则为音频通话
      */
@@ -54,6 +64,14 @@ public class InboundDetail {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    public boolean getTransferredSucceed() {
+        return transferredSucceed;
+    }
+
+    public void setTransferredSucceed(boolean transferredSucceed) {
+        this.transferredSucceed = transferredSucceed;
     }
 
     public String getCaller() {
@@ -176,11 +194,11 @@ public class InboundDetail {
         this.remoteVideoPort = remoteVideoPort;
     }
 
-    public String getChatContent() {
+    public List<JSONObject> getChatContent() {
         return chatContent;
     }
 
-    public void setChatContent(String chatContent) {
+    public void setChatContent(List<JSONObject> chatContent) {
         this.chatContent = chatContent;
     }
 
@@ -194,6 +212,38 @@ public class InboundDetail {
 
     public String getIvrDtmfDigits() {
         return ivrDtmfDigits;
+    }
+
+    public String getHangupCause() {
+        return hangupCause;
+    }
+
+    public void setHangupCause(String hangupCause) {
+        this.hangupCause = hangupCause;
+    }
+
+    public long getManualAnsweredTime() {
+        return manualAnsweredTime;
+    }
+
+    public void setManualAnsweredTime(long manualAnsweredTime) {
+        this.manualAnsweredTime = manualAnsweredTime;
+    }
+
+    public long getManualAnsweredTimeLen() {
+        return manualAnsweredTimeLen;
+    }
+
+    public void setManualAnsweredTimeLen(long manualAnsweredTimeLen) {
+        this.manualAnsweredTimeLen = manualAnsweredTimeLen;
+    }
+
+    public boolean getStartDtmfExecuted() {
+        return startDtmfExecuted;
+    }
+
+    public void setStartDtmfExecuted(boolean startDtmfExecuted) {
+        this.startDtmfExecuted = startDtmfExecuted;
     }
 
     public void setIvrDtmfDigits(String ivrDtmfDigits) {

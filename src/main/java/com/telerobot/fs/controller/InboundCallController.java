@@ -1,5 +1,6 @@
 package com.telerobot.fs.controller;
 
+import com.telerobot.fs.acd.AcdSqlQueue;
 import com.telerobot.fs.acd.CallHandler;
 import com.telerobot.fs.acd.InboundGroupHandler;
 import com.telerobot.fs.config.AppContextProvider;
@@ -11,6 +12,8 @@ import com.telerobot.fs.entity.bo.LlmConsumer;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
 import com.telerobot.fs.entity.dto.InboundConfig;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.global.BizThreadPoolForEsl;
+import com.telerobot.fs.ivr.IvrEngine;
 import com.telerobot.fs.robot.LlmThreadManager;
 import com.telerobot.fs.robot.RobotChat;
 import com.telerobot.fs.service.CallTaskService;
@@ -19,6 +22,10 @@ import com.telerobot.fs.service.InboundDetailService;
 import com.telerobot.fs.service.LlmAccountParser;
 import com.telerobot.fs.utils.*;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
+import link.thingscloud.freeswitch.esl.IEslEventListener;
+import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
+import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Scope;
@@ -28,6 +35,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
 
@@ -76,10 +84,11 @@ public class InboundCallController {
 	@ResponseBody
 	public String inboundCall(HttpServletRequest request) throws InstantiationException, IllegalAccessException {
 		String clientIP = request.getRemoteAddr();
-		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
-			String tips = "Forbidden, only '127.0.0.1' is allowed.";
-			logger.error(tips);
-			return  tips;
+		String allowedIP = SystemConfig.getValue("call-center-server-ip-addr","");
+		if(!"127.0.0.1".equalsIgnoreCase(clientIP) && !allowedIP.equalsIgnoreCase(clientIP)){
+			String tips = String.format("Forbidden, only '127.0.0.1' and %s are allowed to visit this api.", allowedIP);
+			logger.warn(tips);
+			//return  tips;
 		}
 
 		final String uuid = request.getParameter("uuid");
@@ -179,6 +188,8 @@ public class InboundCallController {
                                 account.asrProvider = inboundConfig.getAsrProvider();
 								account.aiTransferType = inboundConfig.getAiTransferType();
 								account.aiTransferData = inboundConfig.getAiTransferData();
+								account.ivrId = inboundConfig.getIvrId();
+								account.satisfSurveyIvrId = inboundConfig.getSatisfSurveyIvrId();
 								logger.info("{} tts config info: voiceSource={}, voiceCode={} for callee {}",
 										uuid,
 										account.voiceSource,
@@ -190,15 +201,66 @@ public class InboundCallController {
 								if(!robotChat.getHangup()){
 									robotChat.startProcess(uuid);
 								}
-							}else{
+							}else if("acd".equalsIgnoreCase(inboundConfig.getServiceType())) {
 								logger.info("{} Try to transfer call to acd queue for callee {}.",
 										uuid,
 										callee
 								);
 								CallHandler callHandler = new CallHandler(inboundDetail);
+								callHandler.setSatisfSurveyIvrId(inboundConfig.getSatisfSurveyIvrId());
 								if (InboundGroupHandler.addCallToQueue(callHandler,inboundConfig.getAiTransferData())) {
 									logger.info("{} successfully add call to acd queue.", inboundDetail.getUuid());
 								}
+							}else if("ivr".equalsIgnoreCase(inboundConfig.getServiceType())) {
+								String ivrPlanId =  inboundConfig.getIvrId();
+								logger.info("{} Try to start ivr process. ivrId={}.", uuid, ivrPlanId);
+								IEslEventListener listener = new IEslEventListener() {
+									@Override
+									public void eventReceived(String addr, EslEvent event) {
+										BizThreadPoolForEsl.submitTask(new Runnable() {
+											@Override
+											public void run() {
+												processEslMsg(addr, event);
+											}
+										});
+									}
+									private void processEslMsg(String addr, EslEvent event) {
+										Map<String,String> headers = event.getEventHeaders();
+										String eventName = headers.get("Event-Name");
+										logger.info("{} recv {} event", inboundDetail.getUuid(), eventName);
+										if (eventName.equalsIgnoreCase(EventNames.CHANNEL_HANGUP)) {
+											inboundDetail.setHangupTime(System.currentTimeMillis());
+											long timeLen = System.currentTimeMillis() - inboundDetail.getInboundTime();
+											long answeredTimeLen = System.currentTimeMillis() - inboundDetail.getAnsweredTime();
+											inboundDetail.setTimeLen(timeLen);
+											inboundDetail.setAnsweredTimeLen(answeredTimeLen);
+											String hangupCause = headers.get("Hangup-Cause");
+											String sipCode = headers.get("variable_proto_specific_hangup_cause");
+											CommonUtils.setHangupCauseDetail(
+													inboundDetail,
+													hangupCause,
+													"sip-code=" + sipCode
+											);
+										}
+										AcdSqlQueue.addToSqlQueue(inboundDetail);
+									}
+									@Override
+									public void backgroundJobResultReceived(String addr, EslEvent event) {
+
+									}
+
+									@Override
+									public String context() {
+										return InboundCallController.class.getName();
+									}
+								};
+								inboundDetail.setAnsweredTime(System.currentTimeMillis());
+								EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(
+										uuid, listener
+								);
+								inboundDetail.setExtnum("ivr");
+								inboundDetail.setOpnum("ivr");
+								AppContextProvider.getBean(IvrEngine.class).startIvrSession(inboundDetail, ivrPlanId);
 							}
 
 						}else{

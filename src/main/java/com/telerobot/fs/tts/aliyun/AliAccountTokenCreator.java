@@ -10,8 +10,11 @@ import com.aliyuncs.exceptions.ClientException;
 import com.aliyuncs.http.MethodType;
 import com.aliyuncs.http.ProtocolType;
 import com.aliyuncs.profile.DefaultProfile;
+import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.AliyunTtsAccount;
+import com.telerobot.fs.entity.po.HangupCause;
+import com.telerobot.fs.robot.RobotBase;
 import com.telerobot.fs.utils.StringUtils;
 import link.thingscloud.freeswitch.esl.util.CurrentTimeMillisClock;
 import org.slf4j.Logger;
@@ -89,6 +92,11 @@ public class AliAccountTokenCreator {
                             return null;
                         }
                     } catch (Exception e) {
+                        String traceId =  ThreadLocalTraceId.getInstance().getTraceId();
+                        if(!StringUtils.isNullOrEmpty(traceId)) {
+                            log.error("{} RobotBase.setHangupCauseByUuid = {}", traceId, HangupCause.TTS_SERVER_CONNECTED_FAILED.getCode());
+                            RobotBase.setHangupCauseByUuid(traceId, HangupCause.TTS_SERVER_CONNECTED_FAILED, e.toString());
+                        }
                         log.error("aliShortTextTTSWebAPI error: " + e.toString());
                         return null;
                     }

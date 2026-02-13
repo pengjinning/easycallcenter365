@@ -43,6 +43,7 @@ public class FsEslStarter implements ApplicationListener<ApplicationReadyEvent> 
         eventSubscriptions.add(EventNames.DTMF);
         eventSubscriptions.add("CUSTOM AsrEvent");
         eventSubscriptions.add("CUSTOM TtsEvent");
+        eventSubscriptions.add("CUSTOM Ecc365GlobalEvent");
         eventSubscriptions.add("CUSTOM sofia::register");
         eventSubscriptions.add("CUSTOM sofia::unregister");
 

@@ -127,8 +127,12 @@ public class SysDaoImpl implements SysDao {
 	}
 
 	@Override
-	public LlmKb getKbContentByCat(String cat) {
-		return mapper.getKbContentByCat(cat);
+	public LlmKb getKbContentByCat(int catId, String title) {
+		return mapper.getKbContentByCat(catId, title);
 	}
 
+	@Override
+	public  List<LlmKb> getKbListByCatId(int catId){
+         return mapper.getKbListByCatId(catId);
+	}
 }

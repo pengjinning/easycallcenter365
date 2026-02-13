@@ -11,6 +11,8 @@ import com.telerobot.fs.entity.dto.CallMonitorInfo;
 import com.telerobot.fs.entity.po.CdrDetail;
 import com.telerobot.fs.entity.pojo.AgentStatus;
 import com.telerobot.fs.global.CdrPush;
+import com.telerobot.fs.ivr.IvrEngine;
+import com.telerobot.fs.service.AsrResultListener;
 import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.utils.*;
 import com.telerobot.fs.wshandle.*;
@@ -20,6 +22,7 @@ import link.thingscloud.freeswitch.esl.EslConnectionPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.slf4j.Logger;
@@ -28,7 +31,9 @@ import org.slf4j.LoggerFactory;
 import java.net.URLDecoder;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 // import java.util.concurrent.atomic.LongAdder;
@@ -72,6 +77,19 @@ public class CallHandler {
 		return inboundDetail;
 	}
 
+	/**
+	 * IVR ID for satisfaction survey
+	 */
+	private volatile String satisfSurveyIvrId = "";
+
+	public String getSatisfSurveyIvrId() {
+		return satisfSurveyIvrId;
+	}
+
+	public void setSatisfSurveyIvrId(String satisfSurveyIvrId) {
+		this.satisfSurveyIvrId = satisfSurveyIvrId;
+	}
+
 	private static ThreadPoolExecutor transferCallThreadPool;
 
 	private static ThreadPoolExecutor fsMsgThreadPool;
@@ -109,12 +127,50 @@ public class CallHandler {
 	 */
 	private volatile boolean transferFailed = false;
 
-
-
 	/**
 	 *  当前esl连接池对象;
 	 */
 	protected volatile EslConnectionPool eslConnectionPool;
+
+	protected final String WAIT_WAV_FILE = "ivr/keep.wav";
+	private Semaphore playKeepMusicSignal = new Semaphore(1);
+	private Semaphore playBackStartSignal = new Semaphore(0);
+	private Semaphore playBackStoppedSignal = new Semaphore(0);
+	public void playWaitMusic(){
+		log.info("{} playWaitMusic for call session. ", inboundDetail.getUuid());
+		EslConnectionUtil.sendExecuteCommand(
+				"playback",
+				"$${sounds_dir}/" + WAIT_WAV_FILE,
+				inboundDetail.getUuid()
+		);
+	}
+	public boolean waitForPlayBackStoppedSignal() {
+		try {
+			return   playBackStoppedSignal.tryAcquire(1, 2000, TimeUnit.MILLISECONDS);
+		} catch (Throwable e) {
+		}
+		return false;
+	}
+	public boolean waitForPlayBackStartSignal() {
+		try {
+			return  playBackStartSignal.tryAcquire(1, 2000, TimeUnit.MILLISECONDS);
+		} catch (Throwable e) {
+		}
+		return false;
+	}
+	private void releasePlayBackStoppedSignal() {
+		playBackStoppedSignal.release();
+	}
+	public boolean getPlayKeepMusicSignal() {
+		try {
+			return playKeepMusicSignal.tryAcquire(2000, TimeUnit.MILLISECONDS);
+		}catch (Throwable e){
+		}
+		return false;
+	}
+	public void releasePlayKeepMusicSignal() {
+		playKeepMusicSignal.release();
+	}
 
 	static {
 		int fsEslMsgThreadPoolSize = Integer.parseInt(AppContextProvider.getEnvConfig("app-config.fs-esl-msg-thread-pool-size", "50"));
@@ -146,13 +202,17 @@ public class CallHandler {
 
 	public CallHandler(InboundDetail inboundDetail) {
 		queueNo = globalQueueCounter.incrementAndGet();
+		inboundDetail.setTransferredSucceed(false);
 		log.info("{} init callHandler object ...", inboundDetail.getUuid());
 		this.inboundDetail = inboundDetail;
 		this.uuid = inboundDetail.getUuid();
         this.bleg = generateBLegStr();
 		this.eslConnectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
 		eslListener = new myESLEventListener();
-		this.eslConnectionPool.getDefaultEslConn().addListener(this.uuid + "-acd",  eslListener);
+		this.eslConnectionPool.getDefaultEslConn().addListener(this.uuid + UuidKeys.ACD,  eslListener);
+		this.eslConnectionPool.getDefaultEslConn().removeOtherListenersExcludeByUuidKeys(this.uuid,
+				new String[]{UuidKeys.ACD, UuidKeys.BATCH_CALL}
+		);
 		if(detectCallActive()) {
 			callTaskList.put(uuid, this);
 		}
@@ -226,10 +286,10 @@ public class CallHandler {
 			long currentTime = System.currentTimeMillis();
 			long timePassed = currentTime - task.inboundDetail.getTransferTime() + 200;
 			boolean transferExpired = (task.inboundDetail.getTransferTime() > 0L) && (timePassed > transferAgentTimeOut * 1000);
-			boolean answered = task.inboundDetail.getAnsweredTime() > 0L;
+			boolean transferredSucceed = task.inboundDetail.getTransferredSucceed();
 			boolean hangup = task.inboundDetail.getHangup();
 			// 通话未挂机且未被应答
-			boolean notAnsweredAndNotHangup = !answered && !hangup;
+			boolean notAnsweredAndNotHangup = !transferredSucceed && !hangup;
 			boolean callExtensionNoAnswer = task.transferring && transferExpired && notAnsweredAndNotHangup;
 			boolean transferExtensionFailed =  task.transferFailed;
 			if(transferExtensionFailed || callExtensionNoAnswer){
@@ -272,12 +332,7 @@ public class CallHandler {
 			}
 
 			if (notAnsweredAndNotHangup && !task.keepMusicPlayed ) {
-				EslConnectionUtil.sendExecuteCommand(
-						"endless_playback",
-						"$${sounds_dir}/ivr/keep.wav",
-						task.uuid,
-						task.eslConnectionPool
-				);
+				task.playWaitMusic();
 				EslConnectionUtil.sendExecuteCommand(
 						"playback",
 						"$${sounds_dir}/ivr/pleaseWait.wav",
@@ -408,6 +463,14 @@ public class CallHandler {
 						customerChannel.setPhoneNumber(inboundDetail.getCaller());
 						customerChannel.setChannelState(ChanneState.BRIDGED);
 						customerChannel.setFlag(ChannelFlag.HOLD_CALL);
+						if(!StringUtils.isNullOrEmpty(satisfSurveyIvrId)){
+							customerChannel.setFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED);
+							EslConnectionUtil.sendExecuteCommand(
+									"set",
+									"park_after_bridge=true",
+									uuid
+							);
+						}
 
 						String asyncJobId = callApi.connectAgentExtNum(agentChannel, customerChannel,
 								displayNumber, transferAgentTimeOut, inboundDetail.getInboundTime());
@@ -430,13 +493,7 @@ public class CallHandler {
 	private void playOpNumOnTransferring(){
 		if (playOpNum) {
 			// 播放为当前通话服务的客服人员工号
-			String destOpNum = agentSessionEntity.getOpNum();
-			// 打断历史播放的等待音乐
-			EslConnectionUtil.sendSyncApiCommand(
-					"uuid_break" ,
-					String.format("%s all", uuid),
-					eslConnectionPool
-			);
+			String destOpNum = agentSessionEntity.getExtNum();
 			ThreadUtil.sleep(50);
 			for (int i = 0; i <= destOpNum.length() - 1; i++) {
 				EslConnectionUtil.sendExecuteCommand(
@@ -479,7 +536,7 @@ public class CallHandler {
 	class myESLEventListener implements IEslEventListener {
 		private final Logger log = LoggerFactory.getLogger(myESLEventListener.class);
 		private String backgroundJobUuid = "";
-
+		private Semaphore callerParkSemaphore = new Semaphore(0);
 		private myESLEventListener(){
 		}
 
@@ -498,7 +555,33 @@ public class CallHandler {
 			long timeDelay = now - eventTime;
 			log.info("{} The [{}] event takes {} ms from generation to processing.", uuid, eventName, timeDelay);
 
-			if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
+			String playbackFilePath = headers.get("Playback-File-Path");
+			if (EventNames.PLAYBACK_START.equalsIgnoreCase(eventName)) {
+				if (playbackFilePath != null && playbackFilePath.endsWith(WAIT_WAV_FILE)) {
+					playBackStartSignal.release();
+				}
+			}else if (EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)) {
+				if (playbackFilePath != null && playbackFilePath.endsWith(WAIT_WAV_FILE)) {
+					releasePlayBackStoppedSignal();
+					log.info("{} recv PLAYBACK_STOP event for wav file {}. ", inboundDetail.getUuid(), playbackFilePath);
+					boolean getAllowSignal = getPlayKeepMusicSignal();
+					if(getAllowSignal) {
+						if (inboundDetail.getManualAnsweredTime() == 0L) {
+							playWaitMusic();
+							waitForPlayBackStartSignal();
+						}
+						releasePlayKeepMusicSignal();
+					}else{
+						log.error("{} getPlayKeepMusicSignal error!", inboundDetail.getUuid());
+					}
+				}
+			}else  if (EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)) {
+				if (uuid.equalsIgnoreCase(uniqueID)) {
+					log.info("{} recv caller park event={}", uuid, eventName);
+					callerParkSemaphore.release();
+				}
+			}
+			else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
 				if (!uniqueID.contains(BLEGSTR)) {
 					if(agentSessionEntity != null) {
 						saveAgentHangupTime(agentSessionEntity.getExtNum());
@@ -522,8 +605,15 @@ public class CallHandler {
 					if(inboundDetail.getAnsweredTime() > 0L) {
 						inboundDetail.setAnsweredTimeLen(now - inboundDetail.getAnsweredTime());
 					}
-
 					inboundDetail.setTimeLen(now - inboundDetail.getInboundTime());
+
+					if(inboundDetail.getManualAnsweredTime() > 0L) {
+						inboundDetail.setManualAnsweredTimeLen(now - inboundDetail.getManualAnsweredTime());
+					}
+
+					List<JSONObject> origDialogueList = inboundDetail.getChatContent();
+					origDialogueList.addAll(AsrResultListener.getDialogueByUuid(inboundDetail.getUuid()));
+					inboundDetail.setChatContent(origDialogueList);
 					removeFsListener();
 					AcdSqlQueue.addToSqlQueue(inboundDetail);
 
@@ -539,16 +629,26 @@ public class CallHandler {
 
 					cdrDetail.setCdrBody(JSON.toJSONString(inboundDetail));
 					CdrPush.addCdrToQueue(cdrDetail);
-				}else{
+				}else {
 					String extnum = headers.get("variable_extnum");
 					saveAgentHangupTime(extnum);
 					log.info("{} extension is hangup, hangupCause: {}", uuid, hangupCause);
 					boolean answered = inboundDetail.getAnsweredTime() > 0L;
-					if(!answered){
+					if (!answered) {
 						log.error("{} The extension failed to answer the call. Extension {} is abnormal. Please pay attention to it!", uuid, extnum);
 					}
-				}
 
+					if (inboundDetail.getManualAnsweredTime() > 0L) {
+						if (!StringUtils.isNullOrEmpty(satisfSurveyIvrId)) {
+							try {
+								callerParkSemaphore.tryAcquire(2100L, TimeUnit.MILLISECONDS);
+							} catch (Throwable e) {
+							}
+							log.info("{} Try to start ivr process for satisfaction survey. ivrId={}.", inboundDetail.getUuid(), satisfSurveyIvrId);
+							AppContextProvider.getBean(IvrEngine.class).startIvrSession(inboundDetail, satisfSurveyIvrId);
+						}
+					}
+				}
 			} else if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
 				log.info("{} recv ringing event {}", uuid, eventName);
 			} else if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
@@ -581,7 +681,11 @@ public class CallHandler {
 					// 记录当前接听者;
 					inboundDetail.setOpnum(agentSessionEntity.getOpNum());
 					inboundDetail.setExtnum(agentSessionEntity.getExtNum());
-					inboundDetail.setAnsweredTime(System.currentTimeMillis());
+					inboundDetail.setManualAnsweredTime(System.currentTimeMillis());
+					inboundDetail.setTransferredSucceed(true);
+
+					breakWaitMusic();
+
 					log.info("{} resetAgentBusyLockTime. uerId={}, extNum={}",
 							uuid,
 							agentSessionEntity.getOpNum(),
@@ -593,6 +697,25 @@ public class CallHandler {
 			}
 		}
 
+		private void breakWaitMusic(){
+			boolean getAllowSignal = getPlayKeepMusicSignal();
+			if(getAllowSignal) {
+				long startTime = System.currentTimeMillis();
+				int maxTry = 3;
+				int tryCounter = 0;
+				while (tryCounter < maxTry) {
+					tryCounter++;
+					EslConnectionUtil.sendSyncApiCommand("uuid_break", String.format("%s all", inboundDetail.getUuid()));
+					if(waitForPlayBackStoppedSignal()){
+						break;
+					}
+				}
+				log.info("{} waitForPlayBackStoppedSignal took {} ms. ", inboundDetail.getUuid(), System.currentTimeMillis() - startTime);
+				releasePlayKeepMusicSignal();
+			}else{
+				log.error("{} getPlayKeepMusicSignal error!", inboundDetail.getUuid());
+			}
+		}
 
 		@Override
 		public void eventReceived(String addr, EslEvent event) {
@@ -621,6 +744,11 @@ public class CallHandler {
 				transferFailed = true;
 				log.error("{} exception result got while connect extension，details：{}", uuid, event.toString());
 			}
+		}
+
+		@Override
+		public String context() {
+			return CallHandler.class.getName();
 		}
 	}
 

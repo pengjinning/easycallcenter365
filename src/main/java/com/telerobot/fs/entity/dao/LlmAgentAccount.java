@@ -15,4 +15,5 @@ public class LlmAgentAccount {
     private String interruptIgnoreKeywords;
     private int concurrentNum;
     private String transferManualDigit;
+    private int kbCatId;
 }

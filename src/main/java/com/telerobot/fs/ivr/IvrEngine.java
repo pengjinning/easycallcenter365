@@ -2,27 +2,33 @@ package com.telerobot.fs.ivr;
 
 import com.alibaba.fastjson.JSON;
 import com.telerobot.fs.config.AppContextProvider;
+import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.dao.LlmAgentAccount;
+import com.telerobot.fs.entity.dto.InboundConfig;
+import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.pojo.AsrProvider;
 import com.telerobot.fs.entity.pojo.TtsProvider;
+import com.telerobot.fs.robot.RobotChat;
 import com.telerobot.fs.robot.TransferToAgent;
+import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.service.InboundDetailService;
+import com.telerobot.fs.service.LlmAccountParser;
 import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
+import com.telerobot.fs.utils.ThreadPoolCreator;
 import com.telerobot.fs.utils.ThreadUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * IVR Engine Core Class
@@ -38,7 +44,26 @@ public class IvrEngine {
     
     // Scheduled task executor for cleaning up timeout sessions
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    
+
+    private static volatile ThreadPoolExecutor ivrThreadPool = null;
+
+    protected  static void startIvrMainThreadPool(){
+        if(ivrThreadPool == null) {
+            synchronized (IvrEngine.class) {
+                if(ivrThreadPool == null) {
+                    int maxRobotNumber = Integer.parseInt(SystemConfig.getValue("ivr-thread-pool-size", "50"));
+                    ivrThreadPool = ThreadPoolCreator.create(
+                            maxRobotNumber,
+                            "ivr_main_thread_",
+                            24L,
+                            maxRobotNumber + 5
+                    );
+                    logger.info("successfully create ivrThreadPool.");
+                }
+            }
+        }
+    }
+
     public IvrEngine(IvrConfigLoader ivrConfigLoader) {
         this.ivrConfigLoader = ivrConfigLoader;
         
@@ -47,7 +72,8 @@ public class IvrEngine {
     }
 
     private void startDtmf(String sessionId){
-        EslConnectionUtil.sendExecuteCommand("start_dtmf", "", sessionId);
+        String response =  EslConnectionUtil.sendExecuteCommand("start_dtmf", "", sessionId);
+        logger.info("{} startDtmf response: {} ", sessionId, response);
     }
 
     private boolean checkCallStatus(String uuid){
@@ -65,14 +91,37 @@ public class IvrEngine {
         }
         return true;
     }
-    
+
+    public boolean  startIvrSession(InboundDetail callDetail, String ivrPlanId) {
+        startIvrMainThreadPool();
+        ivrThreadPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                startIvrSessionInternal(callDetail, ivrPlanId);
+            }
+        });
+        return true;
+    }
+
     /**
      * Start new IVR session
      */
-    public boolean  startIvrSession(InboundDetail callDetail, String ivrPlanId) {
+    public boolean  startIvrSessionInternal(InboundDetail callDetail, String ivrPlanId) {
+        logger.info("{} try to startIvrSession, ivrId={}", callDetail.getUuid(), ivrPlanId);
         String sessionId = callDetail.getUuid();
         String callerId = callDetail.getCaller();
         String calleeId = callDetail.getCallee();
+
+        String dtmfType = SystemConfig.getValue("ivr-dtmf-type", DtmfType.RFC2833);
+        logger.info("{} ivr-dtmf-type={} ", sessionId,  dtmfType);
+        if(dtmfType.equalsIgnoreCase(DtmfType.INBAND)) {
+            if (!callDetail.getStartDtmfExecuted()) {
+                logger.info("{} ivr-dtmf-type={}, try to start_dtmf.", sessionId,  DtmfType.INBAND);
+                startDtmf(callDetail.getUuid());
+                callDetail.setStartDtmfExecuted(true);
+            }
+        }
+
         IvrPlan plan = ivrConfigLoader.getIvrPlan(ivrPlanId);
         if (plan == null) {
             logger.error("IVR plan not found: ID={}", ivrPlanId);
@@ -88,7 +137,7 @@ public class IvrEngine {
         session.setTtsProvider(plan.getRootNode().getTtsProvider());
         session.setVoiceCode(plan.getRootNode().getVoiceCode());
         activeSessions.put(sessionId, session);
-        startDtmf(session.getSessionId());
+        //startDtmf(session.getSessionId());
 
         if(session.getTtsProvider().equalsIgnoreCase(TtsProvider.ALIYUN)) {
             if ((!AliyunTTSWebApi.setAliyunTokenToFreeSWITCH(sessionId))) {
@@ -145,7 +194,7 @@ public class IvrEngine {
                     currentNode.getNodeName() + " ,id: " + currentNode.getId()
             );
             // Match failed
-            return executeHangupAction(session, "no-Children-found");
+            return executeHangupAction(session, "no-Ivr-Children-found");
         }
     }
     
@@ -160,34 +209,42 @@ public class IvrEngine {
         logger.info("Execute IVR node: SessionID={}, NodeID={}, NodeName={}, Action={}",
                 session.getSessionId(), node.getId(), node.getNodeName(), node.getAction());
 
+        session.getEsl().resetDTMF();
         executePlayAction(session, node);
         String action = node.getAction().toLowerCase();
-        try {
-            switch (action) {
-                case IvrAction.ACD:
-                case IvrAction.GATEWAY:
-                case IvrAction.EXTENSION:
-                    logger.info("{} Try to transfer call session to manual.", session.getSessionId());
-                    return doTransferToManualAgent(session);
-                case IvrAction.HANGUP:
-                    logger.info("{} Try to hangup call session.", session.getSessionId());
-                    return executeHangupAction(session, "reach-hangup-node");
-                case IvrAction.UP_ACTION:
-                    logger.info("Return to parent, SessionID={}", session.getSessionId());
-                    if (session.backToParent()) {
-                        return executeIvrNode(session);
-                    }
-                    return executeHangupAction(session, "go-up-action-error");
-                case IvrAction.FUNCTION:
-                    executeFunctionAction(session, node);
+
+        if(IvrAction.PLAY.equalsIgnoreCase(action)) {
+            startWaitForInput(session);
+        }else{
+            try {
+                session.getEsl().waitForPlaybackEnd();
+                switch (action) {
+                    case IvrAction.ACD:
+                    case IvrAction.GATEWAY:
+                    case IvrAction.EXTENSION:
+                        logger.info("{} Try to transfer call session to manual.", session.getSessionId());
+                        return doTransferToManualAgent(session);
+                    case IvrAction.AI:
+                        return doTransferToAI(session);
+                    case IvrAction.HANGUP:
+                        logger.info("{} Try to hangup call session.", session.getSessionId());
+                        return executeHangupAction(session, "reach-hangup-node");
+                    case IvrAction.UP_ACTION:
+                        logger.info("Return to parent, SessionID={}", session.getSessionId());
+                        if (session.backToParent()) {
+                            return executeIvrNode(session);
+                        }
+                        return executeHangupAction(session, "go-up-action-error");
+                    case IvrAction.FUNCTION:
+                        executeFunctionAction(session, node);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to execute IVR node: SessionID={}, NodeID={}",
+                        session.getSessionId(), node.getId(), e);
+                return false;
             }
-        } catch (Exception e) {
-            logger.error("Failed to execute IVR node: SessionID={}, NodeID={}",
-                    session.getSessionId(), node.getId(), e);
-            return false;
         }
 
-        startWaitForInput(session);
         while (!session.getEsl().getInputValidateSuccess() && !session.getEsl().getHangup()) {
             IvrNode currentNode = session.getCurrentNode();
             session.incrementPressKeyFailures();
@@ -201,7 +258,7 @@ public class IvrEngine {
             // Play error prompt
             if (currentNode.getPressKeyInvalidTips() != null &&
                     !currentNode.getPressKeyInvalidTips().trim().isEmpty()) {
-                session.getEsl().play(currentNode.getPressKeyInvalidTips());
+                session.getEsl().play(currentNode.getPressKeyInvalidTips(), currentNode.getPressKeyInvalidTipsWav());
                 session.getEsl().waitForPlaybackEnd();
             }
 
@@ -241,17 +298,76 @@ public class IvrEngine {
     private boolean executePlayAction(IvrSession session, IvrNode node) {
         String ttsText = node.getTtsText();
         if (ttsText != null && !ttsText.trim().isEmpty()) {
-            session.getEsl().play(ttsText);
+            session.getEsl().play(ttsText, node.getTtsTextWav());
         }
        return true;
     }
 
+    /**
+     * transfer call session to ai
+     * @param session
+     * @return
+     */
+    private boolean doTransferToAI(IvrSession session){
+        String aiConfigId =  session.getCurrentNode().getAiTransferData();
+        String uuid = session.getSessionId();
+        logger.info("{} Try to transfer call to ai id={}.",
+                uuid,
+                aiConfigId
+        );
+
+        InboundConfig inboundConfig  =
+                AppContextProvider.getBean(InboundDetailService.class).getInboundConfigById(aiConfigId);
+        if(null == inboundConfig){
+            logger.error("{} cant not get inboundConfig for id {}. ", uuid, aiConfigId);
+            EslConnectionUtil.sendExecuteCommand(
+                    "hangup",
+                    "cant-not-get-inboundConfig.",
+                    uuid
+            );
+            return false;
+        }
+
+        LlmAgentAccount accountJson =  AppContextProvider.getBean(CallTaskService.class)
+                .getLlmAgentAccountById(inboundConfig.getLlmAccountId());
+        AccountBaseEntity account =  LlmAccountParser.parse(accountJson);
+        String callee = inboundConfig.getCallee();
+        if(null == account){
+            logger.error("{} cant not get llmAccount for callee {}.", uuid, callee);
+            EslConnectionUtil.sendExecuteCommand(
+                    "hangup",
+                    "cant-not-get-llmAccount.",
+                    uuid
+            );
+            return false;
+        }
+
+        account.voiceSource = inboundConfig.getVoiceSource();
+        account.voiceCode = inboundConfig.getVoiceCode();
+        account.asrProvider = inboundConfig.getAsrProvider();
+        account.aiTransferType = inboundConfig.getAiTransferType();
+        account.aiTransferData = inboundConfig.getAiTransferData();
+        account.ivrId = inboundConfig.getIvrId();
+        account.satisfSurveyIvrId = inboundConfig.getSatisfSurveyIvrId();
+        logger.info("{} tts config info: voiceSource={}, voiceCode={} for callee {}",
+                uuid,
+                account.voiceSource,
+                account.voiceCode,
+                callee
+        );
+
+        RobotChat robotChat = new RobotChat(session.getCallDetail(), account);
+        if(!robotChat.getHangup()){
+            robotChat.startProcess(uuid);
+        }
+        return true;
+    }
 
     private boolean doTransferToManualAgent(IvrSession session){
         if(!session.getEsl().getHangup()) {
             String transferType = session.getCurrentNode().getAction();
             String transferData = session.getCurrentNode().getAiTransferData();
-            TransferToAgent.transfer(session.getCallDetail(), transferType, transferData);
+            TransferToAgent.transfer(session.getCallDetail(), transferType, transferData, "");
             return true;
         }
         return false;
@@ -262,16 +378,19 @@ public class IvrEngine {
      */
     private boolean executeHangupAction(IvrSession session, String reason) {
         String hangupTips = session.getCurrentNode().getHangupTips();
+        String hangupTipsWav =  session.getCurrentNode().getHangupTipsWav();
         // If the hang-up tts-text of the current node is empty, the default hang-up tts-text of the root node will be used.
         if(StringUtils.isEmpty(hangupTips)){
            IvrNode rootNode = session.getRootNode();
            if(rootNode != null){
                hangupTips = rootNode.getHangupTips();
+               hangupTipsWav = rootNode.getHangupTipsWav();
            }
         }
 
         if(!StringUtils.isEmpty(hangupTips)) {
-            session.getEsl().play(hangupTips);
+            session.getEsl().play(hangupTips,  hangupTipsWav);
+            session.getEsl().resetDTMF();
             session.getEsl().waitForPlaybackEnd();
         }
 

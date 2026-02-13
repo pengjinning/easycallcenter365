@@ -8,6 +8,8 @@ import com.telerobot.fs.ivr.IvrSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +25,7 @@ import java.util.Map;
 public class IvrController {
     private static final Logger logger = LoggerFactory.getLogger(IvrController.class);
 
+    @Lazy
     @Autowired
     private IvrEngine ivrEngine;
 
@@ -35,47 +38,42 @@ public class IvrController {
     @GetMapping("/start")
     public String startIvrSession(HttpServletRequest request) {
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
 
-                Map<String, Object> response = new HashMap<>();
-                try {
-                    String sessionId =  request.getParameter("uuid");
-                    String callerId = request.getParameter("caller");
-                    String calleeId =  request.getParameter("callee");
-                    String ivrPlanId =  request.getParameter("ivr");
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String sessionId = request.getParameter("uuid");
+            String callerId = request.getParameter("caller");
+            String calleeId = request.getParameter("callee");
+            String ivrPlanId = request.getParameter("ivr");
 
-                    if (sessionId == null || callerId == null || calleeId == null || ivrPlanId == null) {
-                        response.put("success", false);
-                        response.put("message", "Missing required parameters");
-                    }
-
-                    InboundDetail callDetail = new InboundDetail(
-                            UuidGenerator.GetOneUuid(),
-                            callerId,
-                            calleeId,
-                            System.currentTimeMillis(),
-                            sessionId,
-                            sessionId + ".wav",
-                            String.valueOf(0),
-                            "0",
-                            null
-                    );
-
-                    boolean result = ivrEngine.startIvrSession(callDetail, ivrPlanId);
-
-                    response.put("success", result);
-                    response.put("message", result ? "IVR session started successfully" : "Failed to start IVR session");
-
-                } catch (Exception e) {
-                    logger.error("Failed to start IVR session", e);
-                    response.put("success", false);
-                    response.put("message", "System error: " + e.getMessage());
-                }
-
+            if (sessionId == null || callerId == null || calleeId == null || ivrPlanId == null) {
+                response.put("success", false);
+                response.put("message", "Missing required parameters");
             }
-        }).start();
+
+            InboundDetail callDetail = new InboundDetail(
+                    UuidGenerator.GetOneUuid(),
+                    callerId,
+                    calleeId,
+                    System.currentTimeMillis(),
+                    sessionId,
+                    sessionId + ".wav",
+                    String.valueOf(0),
+                    "0",
+                    null
+            );
+
+            boolean result = ivrEngine.startIvrSession(callDetail, ivrPlanId);
+
+            response.put("success", result);
+            response.put("message", result ? "IVR session started successfully" : "Failed to start IVR session");
+
+        } catch (Exception e) {
+            logger.error("Failed to start IVR session", e);
+            response.put("success", false);
+            response.put("message", "System error: " + e.getMessage());
+        }
+
 
         return "success";
     }

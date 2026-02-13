@@ -5,6 +5,7 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.bo.LlmConsumer;
 import com.telerobot.fs.entity.bo.RobotInteractiveParam;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
@@ -12,6 +13,7 @@ import com.telerobot.fs.utils.ThreadUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import org.apache.commons.lang.StringUtils;
 import org.dom4j.Document;
 import org.dom4j.Element;
@@ -35,6 +37,33 @@ public abstract class RobotBase implements IEslEventListener {
     public static final  String NO_VOICE = "NO_VOICE";
     protected AtomicInteger noVoiceCounter = new AtomicInteger(0);
     private Semaphore playBackFinishedSignal = new Semaphore(0);
+    protected final String LLM_WAIT_WAV_FILE = "ivr/llm_wait.wav";
+    private Semaphore playBackStartSignalForLlmConcurrency = new Semaphore(0);
+    protected volatile boolean kbQueryExecuted = false;
+    protected void waitForPlayBackStartSignalForLlmConcurrency(){
+        try {
+            playBackStartSignalForLlmConcurrency.tryAcquire(1, 3000, TimeUnit.MILLISECONDS);
+        }catch (Throwable e){
+        }
+    }
+    protected void releasePlayBackStartSignalForLlmConcurrency(){
+        playBackStartSignalForLlmConcurrency.release();
+    }
+    private Semaphore playBackStoppedSignalForLlmConcurrency = new Semaphore(0);
+    private volatile boolean playBackStoppedSignalForLlmConcurrencyReleased = false;
+    protected boolean checkSignalForLlmConcurrency(){
+        return playBackStoppedSignalForLlmConcurrencyReleased;
+    }
+    protected void waitForPlayBackStoppedSignalForLlmConcurrency(){
+        try {
+            playBackStoppedSignalForLlmConcurrency.tryAcquire(1, 3000, TimeUnit.MILLISECONDS);
+        }catch (Throwable e){
+        }
+    }
+    protected void releasePlayBackStoppedSignalForLlmConcurrency(){
+        playBackStoppedSignalForLlmConcurrencyReleased = true;
+        playBackStoppedSignalForLlmConcurrency.release();
+    }
     private boolean playBackFinishedSignalReleased = false;
     protected synchronized void releasePlayBackFinishedSignal(){
          if(!playBackFinishedSignalReleased){
@@ -147,9 +176,11 @@ public abstract class RobotBase implements IEslEventListener {
             chatRobot.setUuid(uuid);
         }
         catch (Throwable throwable){
-           logger.error("{} cant not create chatRobot object, name={}, {}, {} ", provider, getTraceId(),
+            String errorMsg = "cant not create chatRobot object, name=" + provider;
+           logger.error("{} {}, {}, {} ", getTraceId(), errorMsg,
                    throwable.toString(),
                    CommonUtils.getStackTraceString(throwable.getStackTrace())  );
+           CommonUtils.setHangupCauseDetail(callDetail, HangupCause.SYSTEM_INTERNAL_ERROR, "details:" + errorMsg );
            hangupAndCloseConn();
         }
     }
@@ -307,7 +338,11 @@ public abstract class RobotBase implements IEslEventListener {
             return;
         }
         this.eslConnectionPool = connectionPool;
-        connectionPool.getDefaultEslConn().addListener(uuid + "-robot", this);
+        connectionPool.getDefaultEslConn().addListener(uuid + UuidKeys.ROBOT, this);
+        connectionPool.getDefaultEslConn().removeOtherListenersExcludeByUuidKeys(
+                uuid,
+                new String[]{ UuidKeys.ROBOT, UuidKeys.BATCH_CALL }
+        );
         robotCounter.increment();
     }
 
@@ -432,11 +467,20 @@ public abstract class RobotBase implements IEslEventListener {
         startMonitor();
     }
 
+    public static void setHangupCauseByUuid(String uuid, HangupCause cause, String details){
+        RobotBase chat = callTaskList.get(uuid);
+        if(chat != null){
+            CommonUtils.setHangupCauseDetail(chat.callDetail, cause, details);
+        }
+    }
+
+
     /**
      *  开启监视线程; 如果一个通话1分钟还收到客户讲话识别结果，则强制结束它;
      *  （很有可能是未收到挂机信号，强制结束是为了避免ThreadNum泄漏，也为了避免电话一直占线;）
      */
     private static  void startMonitor() {
+
         robotMainThreadPool.execute(new Runnable() {
             @Override
             public void run() {

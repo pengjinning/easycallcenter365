@@ -130,6 +130,10 @@ public class ConfEventListener  implements IEslEventListener {
 	public void backgroundJobResultReceived(String addr, EslEvent event) {
 	}
 
+	@Override
+	public String context() {
+		return this.getClass().getName();
+	}
 
 
 	/**

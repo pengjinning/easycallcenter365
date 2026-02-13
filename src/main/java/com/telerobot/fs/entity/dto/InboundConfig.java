@@ -13,4 +13,6 @@ public class InboundConfig {
     private String serviceType;
     private String aiTransferType;
     private String aiTransferData;
+    private String ivrId;
+    private String satisfSurveyIvrId;
 }

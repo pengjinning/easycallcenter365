@@ -18,11 +18,13 @@ public class IvrNode {
     private String parentNodeId;
     private String rootId;
     private String ttsText;
+    private String ttsTextWav;
     private String action;
     private String aiTransferData;
     private Integer waitKeyTimeout;
     private Integer maxPressKeyFailures;
     private String pressKeyInvalidTips;
+    private String pressKeyInvalidTipsWav;
     private String failedAction;
     private Boolean enabled;
     /**
@@ -35,6 +37,7 @@ public class IvrNode {
     private int minLen;
     private String userInputVarName;
     private String hangupTips;
+    private String hangupTipsWav;
     
     // Child nodes list
     private List<IvrNode> children = new ArrayList<>();
@@ -141,6 +144,30 @@ public class IvrNode {
 
     public void setHangupTips(String hangupTips) {
         this.hangupTips = hangupTips;
+    }
+
+    public String getTtsTextWav() {
+        return ttsTextWav;
+    }
+
+    public void setTtsTextWav(String ttsTextWav) {
+        this.ttsTextWav = ttsTextWav;
+    }
+
+    public String getPressKeyInvalidTipsWav() {
+        return pressKeyInvalidTipsWav;
+    }
+
+    public void setPressKeyInvalidTipsWav(String pressKeyInvalidTipsWav) {
+        this.pressKeyInvalidTipsWav = pressKeyInvalidTipsWav;
+    }
+
+    public String getHangupTipsWav() {
+        return hangupTipsWav;
+    }
+
+    public void setHangupTipsWav(String hangupTipsWav) {
+        this.hangupTipsWav = hangupTipsWav;
     }
 
     public List<IvrNode> getChildren() { return children; }

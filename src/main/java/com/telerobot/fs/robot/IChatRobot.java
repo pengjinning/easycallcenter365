@@ -1,9 +1,11 @@
 package com.telerobot.fs.robot;
 
+import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 
@@ -26,7 +28,7 @@ public interface IChatRobot {
      * @param question
      * @return LlmAiphoneRe
      */
-    LlmAiphoneRes talkWithAiAgent(String question);
+    LlmAiphoneRes talkWithAiAgent(String question, Boolean... withKbResponse);
 
     /**
      *  set uuid of call session
@@ -41,10 +43,15 @@ public interface IChatRobot {
     void setCallDetail(InboundDetail callDetail);
 
     /**
+     *  通话记录信息
+     */
+    InboundDetail getCallDetail();
+
+    /**
      *  获取对话内容
      * @return
      */
-    String getDialogues();
+    List<JSONObject> getDialogues();
 
     /**
      *  sendTtsRequest

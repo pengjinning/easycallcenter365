@@ -34,8 +34,8 @@ public class CdrService {
 	{
 		try {
 			String execSql = "INSERT INTO  `cc_outbound_cdr` (`id`, `caller`, `opnum`, `callee`, `start_time`, `answered_time`, `end_time`," +
-					" `uuid`, `call_type`, `time_len`, `time_len_valid`, `record_filename`, `hangup_cause`)  "
-					+ " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+					" `uuid`, `call_type`, `time_len`, `time_len_valid`, `record_filename`, `hangup_cause`, `chat_content`)  "
+					+ " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 			int affectRow = jdbcTemplate.update(execSql,
 					new Object[]{
 							UuidGenerator.GetOneUuid(),
@@ -50,7 +50,8 @@ public class CdrService {
 							cdr.getTimeLen(),
 							cdr.getValidTimeLenMills(),
 							cdr.getFullRecordPath(),
-							cdr.getHangup_cause()
+							cdr.getHangup_cause(),
+							cdr.getChatContent()
 					});
 			return affectRow == 1;
 		}catch (Throwable e){

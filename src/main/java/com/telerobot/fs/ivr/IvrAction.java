@@ -2,6 +2,7 @@ package com.telerobot.fs.ivr;
 
 public class IvrAction {
     public static final String ACD = "acd";
+    public static final String AI = "ai";
     public static final String EXTENSION = "extension";
     public static final String HANGUP = "hangup";
     public static final String GATEWAY = "gateway";

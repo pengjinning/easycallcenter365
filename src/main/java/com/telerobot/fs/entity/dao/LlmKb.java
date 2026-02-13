@@ -2,8 +2,9 @@ package com.telerobot.fs.entity.dao;
 
 public class LlmKb {
     private int id;
-    private String cat;
+    private String title;
     private String content;
+    private int catId;
 
     public int getId() {
         return id;
@@ -13,12 +14,12 @@ public class LlmKb {
         this.id = id;
     }
 
-    public String getCat() {
-        return cat;
+    public String getTitle() {
+        return title;
     }
 
-    public void setCat(String cat) {
-        this.cat = cat;
+    public void setTitle(String cat) {
+        this.title = cat;
     }
 
     public String getContent() {
@@ -27,5 +28,13 @@ public class LlmKb {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public int getCatId() {
+        return catId;
+    }
+
+    public void setCatId(int catId) {
+        this.catId = catId;
     }
 }

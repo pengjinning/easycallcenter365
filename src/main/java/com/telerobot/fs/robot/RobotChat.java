@@ -1,6 +1,7 @@
 package com.telerobot.fs.robot;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.acd.AcdSqlQueue;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.config.SystemConfig;
@@ -8,28 +9,35 @@ import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.bo.LlmConsumer;
+import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.po.CdrDetail;
+import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.entity.pojo.AsrProvider;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
 import com.telerobot.fs.entity.pojo.TtsProvider;
 import com.telerobot.fs.global.CdrPush;
 import com.telerobot.fs.service.InboundDetailService;
+import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.tts.aliyun.AliyunTTSWebApi;
 import com.telerobot.fs.utils.CommonUtils;
+import com.telerobot.fs.utils.RegExp;
 import com.telerobot.fs.utils.ThreadUtil;
 import io.netty.util.internal.StringUtil;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.apache.commons.lang.StringUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,6 +57,8 @@ public class RobotChat extends RobotBase {
     }
 
     public RobotChat(InboundDetail callDetail, AccountBaseEntity llmAccountInfo) {
+        this.uuid = callDetail.getUuid();
+        ThreadLocalTraceId.getInstance().setTraceId(uuid);
         this.setAsrModelType(SystemConfig.getValue("robot-asr-type", ASR_TYPE_MRCP));
         logger.info("{} current robot_asr_type={}.",
                 getTraceId(),  this.getAsrModelType()
@@ -56,16 +66,13 @@ public class RobotChat extends RobotBase {
         logger.info("{} robot allow interrupt={}, interrupt_keywords={}, interrupt_ignore_keywords={}",
                 getTraceId(),  llmAccountInfo.interruptFlag == 1, llmAccountInfo.interruptKeywords, llmAccountInfo.interruptIgnoreKeywords
         );
-
         this.callDetail = callDetail;
-        this.uuid = callDetail.getUuid();
+
         getEslConnectionPool(
                 uuid,
                 SystemConfig.getValue("event-socket-ip"),
                 Integer.parseInt(SystemConfig.getValue("event-socket-port"))
         );
-        callDetail.setAnsweredTime(System.currentTimeMillis());
-        AcdSqlQueue.addToSqlQueue(callDetail);
         callTaskList.put(uuid, this);
         createChatBot(llmAccountInfo.provider);
         chatRobot.setAccount(llmAccountInfo);
@@ -79,9 +86,11 @@ public class RobotChat extends RobotBase {
 
         EslConnectionUtil.sendExecuteCommand(
                 "playback",
-                "$${sounds_dir}/ivr/llm_wait.wav",
+                "$${sounds_dir}/" + LLM_WAIT_WAV_FILE ,
                 uuid
         );
+        waitForPlayBackStartSignalForLlmConcurrency();
+
         long startTime = System.currentTimeMillis();
         logger.info("{} Try to acquire llm permit, llmAccountInfo.id={}, llmAccountInfo.concurrentNum={}.",
                 getTraceId(),  llmAccountInfo.id, llmAccountInfo.concurrentNum);
@@ -90,7 +99,15 @@ public class RobotChat extends RobotBase {
         logger.info("{} Acquire llm permit successfully, took {} milliseconds. ", getTraceId(),
                   System.currentTimeMillis() - startTime
         );
-        interruptRobotSpeech();
+        int maxTry = 3;
+        int tryCounter = 0;
+        while(!checkSignalForLlmConcurrency() && tryCounter <= maxTry) {
+            interruptRobotSpeech();
+            waitForPlayBackStoppedSignalForLlmConcurrency();
+            tryCounter++;
+        }
+        callDetail.setAnsweredTime(System.currentTimeMillis());
+        AcdSqlQueue.addToSqlQueue(callDetail);
     }
 
 
@@ -108,9 +125,16 @@ public class RobotChat extends RobotBase {
 
         String ttsProvider =  chatRobot.getAccount().voiceSource;
         String asrProvider =  chatRobot.getAccount().asrProvider;
+
         if(ttsProvider.equalsIgnoreCase(TtsProvider.ALIYUN) || asrProvider.equalsIgnoreCase(AsrProvider.ALIYUN)) {
              if((!AliyunTTSWebApi.setAliyunTokenToFreeSWITCH(uuid))) {
-                logger.error("{}  AliyunTTSWebApi getToken error!", getTraceId());
+                 String errMsg = "AliyunTTSWebApi getToken error!";
+                logger.error("{} {} ", getTraceId(), errMsg);
+                CommonUtils.setHangupCauseDetail(
+                         callDetail,
+                         HangupCause.TTS_ACCOUNT_INFO_INCORRECT,
+                         "error msg:" + errMsg
+                 );
                 hangupAndCloseConn();
                 return;
             }
@@ -153,7 +177,6 @@ public class RobotChat extends RobotBase {
 
     protected void processFsMsgEx(Map<String, String> headers) {
         String eventName = headers.get("Event-Name");
-
         String eventDateTimestamp = headers.get("Event-Date-Timestamp");
         if(null != eventDateTimestamp) {
             // esl消息从产生到被处理的延迟时间; 毫秒数
@@ -163,22 +186,34 @@ public class RobotChat extends RobotBase {
         }
 
         String eventSubClass = headers.get("Event-Subclass");
+        String playbackFilePath = headers.get("Playback-File-Path");
+        String detail = headers.get("Ecc365-Event-Detail");
         logger.info("{}  Event-Name：{} ", getTraceId(), eventName);
         if(EventNames.PLAYBACK_START.equalsIgnoreCase(eventName)){
-            String appData = headers.get("variable_current_application_data");
-            if(!StringUtils.isEmpty(appData) && !appData.contains(".wav")) {
+
+            if(EventNames.PLAYBACK_START.equalsIgnoreCase(detail)) {
                 chatRobot.setTtsChannelState(TtsChannelState.OPENED);
                 chatRobot.flushTtsRequestQueue();
                 long timeSpent = System.currentTimeMillis() - playbackStartTime;
                 logger.info("{} PLAYBACK_START event,  time cost = {} ms. ", getTraceId(), timeSpent);
+            }
+
+            if(playbackFilePath != null && playbackFilePath.endsWith(LLM_WAIT_WAV_FILE)){
+                releasePlayBackStartSignalForLlmConcurrency();
+                logger.info("{} recv PLAYBACK_START event for wav file {}. ", getTraceId(), playbackFilePath);
             }
         }else if(EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName))
         {
             logger.info("{} recv CHANNEL_PARK event. ", uuid);
         }
         else if (EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)) {
-            String appData = headers.get("variable_current_application_data");
-            if(!StringUtils.isEmpty(appData) && !appData.contains(".wav")) {
+            if(playbackFilePath != null && playbackFilePath.endsWith(LLM_WAIT_WAV_FILE)){
+                 releasePlayBackStoppedSignalForLlmConcurrency();
+                 logger.info("{} recv PLAYBACK_STOP event for wav file {}. ", getTraceId(), playbackFilePath);
+                 return;
+            }
+
+            if(EventNames.PLAYBACK_STOP.equalsIgnoreCase(detail)) {
                 chatRobot.setTtsChannelState(TtsChannelState.CLOSED);
                 recvPlayBackEndEvent = true;
                 playbackEndTime = System.currentTimeMillis();
@@ -268,6 +303,15 @@ public class RobotChat extends RobotBase {
                logger.info("{}  TtsChannelClosed = true.", getTraceId());
                ttsChannelClosed = true;
            }
+
+            if ("NetworkError".equalsIgnoreCase(event)) {
+                CommonUtils.setHangupCauseDetail(
+                        callDetail,
+                        HangupCause.TTS_SERVER_CONNECTED_FAILED,
+                        headers.get("Error-Details")
+                );
+                hangupAndCloseConn();
+            }
         }
         else if ("CUSTOM".equalsIgnoreCase(eventName) && (
                 "AsrEvent".equalsIgnoreCase(eventSubClass)
@@ -277,6 +321,18 @@ public class RobotChat extends RobotBase {
             if (null != asrResponse) {
                 asrResponse = headers.get("Detect-Speech-Result").trim();
             }
+
+            if ("NetworkError".equalsIgnoreCase(speechEvent)) {
+                CommonUtils.setHangupCauseDetail(
+                        callDetail,
+                        HangupCause.ASR_SERVER_CONNECTED_FAILED,
+                        asrResponse
+                );
+                hangupAndCloseConn();
+                return;
+            }
+
+
             lastTalkTime = System.currentTimeMillis();
 
             if (isHangup || interactiveParam.checkInHangupState()) {
@@ -474,6 +530,11 @@ public class RobotChat extends RobotBase {
     }
 
     @Override
+    public String context() {
+        return this.getClass().getName();
+    }
+
+    @Override
     public void backgroundJobResultReceived(String addr, EslEvent event) {
     }
 
@@ -481,7 +542,6 @@ public class RobotChat extends RobotBase {
      * interactWithRobot
      **/
     private void interactWithRobot() {
-        ThreadLocalTraceId.getInstance().setTraceId(getTraceId());
         interactiveParam.setAllowInterrupt(0);
         recvPlayBackEndEvent = false;
         firstSpeak = false;
@@ -524,14 +584,15 @@ public class RobotChat extends RobotBase {
 
 
                 logger.info("{} send question to chatRobot: {}", getTraceId(), question);
-                aiphoneRes = chatRobot.talkWithAiAgent(question);
+                aiphoneRes = chatRobot.talkWithAiAgent(question, kbQueryExecuted);
                 while ((aiphoneRes == null || aiphoneRes.getStatus_code() == 0)
                         && Llm_max_try_counter.get() < LLM_MAX_TRY) {
                     logger.error("{} llm api error, retry to send question to chatRobot: {}", getTraceId(), question);
-                    aiphoneRes = chatRobot.talkWithAiAgent(question);
+                    aiphoneRes = chatRobot.talkWithAiAgent(question, kbQueryExecuted);
                     Llm_max_try_counter.incrementAndGet();
                 }
                 Llm_max_try_counter.set(0);
+                kbQueryExecuted = false;
 
                 if (aiphoneRes == null || aiphoneRes.getStatus_code() == 0) {
                     String tips = SystemConfig.getValue("llm-max-try-fail-tips", "");
@@ -539,6 +600,11 @@ public class RobotChat extends RobotBase {
                         chatRobot.sendTtsRequest(tips);
                         chatRobot.closeTts();
                     } else {
+                        CommonUtils.setHangupCauseDetail(
+                                callDetail,
+                                HangupCause.LLM_API_SERVER_ERROR,
+                                String.format("The large model failed to access successfully despite more than %d connection attempts.", LLM_MAX_TRY)
+                        );
                         hangupAndCloseConn();
                         return;
                     }
@@ -563,10 +629,31 @@ public class RobotChat extends RobotBase {
                             aiphoneRes.setClose_phone(1);
                             body = body.replace(LlmToolRequest.HANGUP, "");
                         }
+                        if(body.contains(LlmToolRequest.TRANSFER_TO_TEL)){
+                            aiphoneRes.setTransferToAgent(1);
+                        }
+                        if(body.contains(LlmToolRequest.KB_QUERY + "=")){
+                            kbQueryExecuted = true;
+                            int catId =  chatRobot.getAccount().kbCatId;
+                            String title = body.replace(LlmToolRequest.KB_QUERY + "=", "").replace(" ","");
+                            LlmKb kb = AppContextProvider.getBean(SysService.class).getKbContentByCat(catId, title);
+                            String response = "No relevant topics were found.";
+                            if(kb != null){
+                                response = kb.getContent();
+                                logger.info("{} 1 relevant topics {} were found: {} ", getTraceId(), title, response.substring(0, 10));
+                            }
+                            JSONObject userMessage = new JSONObject();
+                            userMessage.put("role",  "system");
+                            userMessage.put("content",  "kbQuery response:" + response);
+                            userMessage.put("content_type", "text");
+                            chatRobot.getDialogues().add(userMessage);
+                            interactWithRobot();
+                            return;
+                        }
                     }
 
                     if (aiphoneRes.getTransferToAgent() == 1) {
-                        doTransferToManualAgent(aiphoneRes.getBody());
+                        doTransferToManualAgent(body);
                         return;
                     }
 
@@ -587,6 +674,11 @@ public class RobotChat extends RobotBase {
             } catch (Throwable e) {
                 logger.error("{} talkWithLargeModel error! {} {} ",
                         getTraceId(), e.toString(), CommonUtils.getStackTraceString(e.getStackTrace())
+                );
+                CommonUtils.setHangupCauseDetail(
+                        callDetail,
+                        HangupCause.SYSTEM_INTERNAL_ERROR,
+                        String.format("server error: %s", e.toString())
                 );
                 hangupAndCloseConn();
                 return;
@@ -621,37 +713,51 @@ public class RobotChat extends RobotBase {
 
     private void doTransferToManualAgent(String audioTipsText){
         transferToAgent = true;
-        InboundDetail callDetailNew = new InboundDetail(
-                UuidGenerator.GetOneUuid(),
-                callDetail.getCaller(),
-                callDetail.getCallee(),
-                System.currentTimeMillis(),
-                callDetail.getUuid(),
-                callDetail.getWavFile(),
-                callDetail.getGroupId(),
-                String.valueOf(callDetail.getRemoteVideoPort()),
-                callDetail.getOutboundPhoneInfo()
-        );
-        callDetailNew.setChatContent(chatRobot.getDialogues());
-        logger.info("{} stop_asr process.", uuid);
+        callDetail.setChatContent(chatRobot.getDialogues());
+
+        // Replace the prompt words for manual transfer in the text with blank spaces.
+        String transferToTel = "";
+        if(!StringUtils.isEmpty(audioTipsText) && audioTipsText.contains(LlmToolRequest.TRANSFER_TO_TEL)){
+            if(!TransferToAgent.TRANSFER_TO_GATEWAY.equalsIgnoreCase(chatRobot.getAccount().aiTransferType)){
+                logger.error("{} instruction `{}`  is only applicable when an external gateway is used to transfer to a manual agent.",
+                        uuid, LlmToolRequest.TRANSFER_TO_TEL);
+                hangupAndCloseConn();
+                return;
+            }
+            List<String> matches = RegExp.GetMatchFromStringByRegExp(audioTipsText, LlmToolRequest.TRANSFER_TO_TEL_REGEXP);
+            for (String match : matches) {
+                audioTipsText = audioTipsText.replace(match, "");
+
+                List<String> tmp = RegExp.GetMatchFromStringByRegExp(match, "\\d{7,12}");
+                transferToTel = tmp.get(0);
+                logger.info("{} Successfully retrieved transferToTel number {}", uuid, transferToTel);
+
+                JSONObject jsonObject = JSON.parseObject(chatRobot.getAccount().aiTransferData);
+                jsonObject.put("destNumber", transferToTel);
+                chatRobot.getAccount().aiTransferData = JSON.toJSONString(jsonObject);
+                logger.info("{} Successfully update aiTransferData: {} ", uuid, chatRobot.getAccount().aiTransferData);
+            }
+        }
+
         if(StringUtils.isEmpty(audioTipsText)){
             String tips = chatRobot.getAccount().transferToAgentTips;
             logger.info("{} Try to play tts  transferToAgentTips {}", getTraceId(), tips);
             chatRobot.sendTtsRequest(tips);
+            chatRobot.closeTts();
+            waitForPlayBackFinished();
+            // wait for tips playback finished
         }
-        chatRobot.closeTts();
+
         // stop_asr 的顺序很重要，需要放在播放tts之后，否则不起作用；会被uuid_break清空指令;
         logger.info("{} Try to stop asr {}", getTraceId(), chatRobot.getAccount().asrProvider);
         EslConnectionUtil.sendExecuteCommand(
                 String.format("stop_%s_asr",  chatRobot.getAccount().asrProvider), "", uuid);
-        acquire(5000);
-        // wait for tips playback finished
-        ThreadUtil.sleep(1000);
+
+        ThreadUtil.sleep(200);
 
         if(!isHangup) {
-            this.processFsMsg(this.generateHangupEvent("transferToAgent"));
-            AppContextProvider.getBean(InboundDetailService.class).insertInbound(callDetailNew);
-            TransferToAgent.transfer(callDetailNew, chatRobot.getAccount().aiTransferType, chatRobot.getAccount().aiTransferData );
+            releaseThreadNum();
+            TransferToAgent.transfer(callDetail, chatRobot.getAccount());
         }
     }
 
@@ -799,8 +905,17 @@ public class RobotChat extends RobotBase {
         callDetail.setOpnum("robot");
         callDetail.setHangupTime(System.currentTimeMillis());
         callDetail.setChatContent(chatRobot.getDialogues());
-        long timeLen = System.currentTimeMillis() - callDetail.getAnsweredTime();
+        long timeLen = System.currentTimeMillis() - callDetail.getInboundTime();
+        long answeredTimeLen = System.currentTimeMillis() - callDetail.getAnsweredTime();
         callDetail.setTimeLen(timeLen);
+        callDetail.setAnsweredTimeLen(answeredTimeLen);
+        if(StringUtils.isEmpty(chatRobot.getCallDetail().getHangupCause())){
+            CommonUtils.setHangupCauseDetail(
+                    callDetail,
+                    hangupCause,
+                    "sip-code=" + sipCode
+            );
+        }
         AcdSqlQueue.addToSqlQueue(callDetail);
     }
 

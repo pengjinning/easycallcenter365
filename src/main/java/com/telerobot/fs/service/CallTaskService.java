@@ -294,11 +294,12 @@ public class CallTaskService {
 				gatewayConfig.setGwName(map.get("gw_name").toString());
 				gatewayConfig.setGatewayAddr(map.get("gw_addr").toString());
 				gatewayConfig.setCallProfile(map.get("profile_name").toString());
+				gatewayConfig.setAuthUsername(map.get("auth_username").toString());
 				gatewayConfig.setCallerNumber(map.get("caller").toString());
 				gatewayConfig.setCalleePrefix(map.get("callee_prefix").toString());
 				gatewayConfig.setAudioCodec(map.get("codec").toString());
 				gatewayConfig.setConcurrency(Integer.parseInt(map.get("max_concurrency").toString()));
-				gatewayConfig.setRegister(Integer.parseInt(map.get("register").toString()) == 1);
+				gatewayConfig.setRegister(Integer.parseInt(map.get("register").toString()));
 				gatewayConfig.setPriority(Integer.parseInt(map.get("priority").toString()));
 				gatewayConfig.setUpdateTime(Long.parseLong(map.get("update_time").toString()));
 				gatewayConfig.setUuid(map.get("id").toString());

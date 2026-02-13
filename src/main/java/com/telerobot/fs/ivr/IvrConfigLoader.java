@@ -1,5 +1,6 @@
 package com.telerobot.fs.ivr;
 
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
@@ -37,7 +38,6 @@ public class IvrConfigLoader {
     @PostConstruct
     public void loadAllIvrConfigs() {
         logger.info("Start loading all IVR configurations...");
-        
         try {
             // Query all enabled IVR nodes
             String sql = "SELECT * FROM cc_ivr WHERE enabled = 1 ORDER BY parent_node_id, digit";
@@ -154,6 +154,10 @@ public class IvrConfigLoader {
             ivrNode.setTtsText(rs.getString("tts_text"));
             ivrNode.setAction(rs.getString("action"));
             ivrNode.setAiTransferData(rs.getString("ai_transfer_data"));
+
+            ivrNode.setTtsTextWav(rs.getString("tts_text_wav"));
+            ivrNode.setPressKeyInvalidTipsWav(rs.getString("press_key_invalid_tips_wav"));
+            ivrNode.setHangupTipsWav(rs.getString("hangup_tips_wav"));
 
             // 映射整数类型字段
             ivrNode.setWaitKeyTimeout(rs.getInt("wait_key_timeout"));

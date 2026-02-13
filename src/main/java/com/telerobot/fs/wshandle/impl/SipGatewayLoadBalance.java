@@ -93,7 +93,7 @@ public class SipGatewayLoadBalance {
             GatewayConfig config = gatewayConfigList.get(i);
             config.setAvailableConcurrency(new Semaphore(config.getConcurrency()));
             // 对接模式下，需要解析GatewayAddr中的callProfile参数;
-            if (!config.getRegister()) {
+            if (config.getRegister() == 0) {
                 if (config.getGatewayAddr().contains(";")) {
                     String[] tmpArray = config.getGatewayAddr().split(";");
                     config.setGatewayAddr(tmpArray[0]);

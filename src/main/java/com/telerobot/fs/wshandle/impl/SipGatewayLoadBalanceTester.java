@@ -28,7 +28,7 @@ public class SipGatewayLoadBalanceTester {
                     "" + i,
                     i,
                     RandomUtils.getRandomByRange(5, 8),
-                    false,
+                    0,
                     "g711"
             ));
         }

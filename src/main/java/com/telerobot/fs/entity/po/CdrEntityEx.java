@@ -28,6 +28,7 @@ public class CdrEntityEx {
 	   private String fullRecordPath;
 	   private int ValidTimeLenMills;
 	   private String callType;
+	   private String chatContent;
 
 	   /**
 		* 录音类型
@@ -225,5 +226,13 @@ public class CdrEntityEx {
 	   public void setValidTimeLenMills(int validTimeLenMills) {
 		   ValidTimeLenMills = validTimeLenMills;
 	   }
-   }
+
+		public String getChatContent() {
+			return chatContent;
+		}
+
+		public void setChatContent(String chatContent) {
+			this.chatContent = chatContent;
+		}
+}
 

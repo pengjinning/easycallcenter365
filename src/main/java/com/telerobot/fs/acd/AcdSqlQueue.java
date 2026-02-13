@@ -1,6 +1,7 @@
 package com.telerobot.fs.acd;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.outbound.batchcall.ScheduledScanTask;
@@ -32,11 +33,21 @@ public class AcdSqlQueue implements ApplicationListener<ApplicationReadyEvent>  
 
 			phone.getOutboundPhoneInfo().setCallstatus(6);
 			phone.getOutboundPhoneInfo().setAcdOpnum(phone.getOpnum());
-			phone.getOutboundPhoneInfo().setValidTimeLen((int)phone.getTimeLen());
 			phone.getOutboundPhoneInfo().setCallEndTime(phone.getHangupTime());
-			phone.getOutboundPhoneInfo().setDialogue(phone.getChatContent());
 			phone.getOutboundPhoneInfo().setAnsweredTime(phone.getAnsweredTime());
-			phone.getOutboundPhoneInfo().setTimeLen( (int)((phone.getHangupTime() -  phone.getOutboundPhoneInfo().getCalloutTime() )) );
+			phone.getOutboundPhoneInfo().setManualAnsweredTime(phone.getManualAnsweredTime());
+			phone.getOutboundPhoneInfo().setManualAnsweredTimeLen(phone.getManualAnsweredTimeLen());
+
+			if(phone.getHangupTime() > 0) {
+				phone.getOutboundPhoneInfo().setTimeLen((int) ((phone.getHangupTime() - phone.getOutboundPhoneInfo().getCalloutTime())));
+				if(phone.getAnsweredTime() > 0){
+					phone.getOutboundPhoneInfo().setValidTimeLen((int) ((phone.getHangupTime() - phone.getOutboundPhoneInfo().getAnsweredTime())));
+				}
+
+				List<JSONObject> origDialogueList = phone.getOutboundPhoneInfo().getDialogue();
+				origDialogueList.addAll(phone.getChatContent());
+				phone.getOutboundPhoneInfo().setDialogue(origDialogueList);
+			}
 
 			// Redirect the data to another SQL queue.
 			ScheduledScanTask.addToSQLQueue(phone.getOutboundPhoneInfo());

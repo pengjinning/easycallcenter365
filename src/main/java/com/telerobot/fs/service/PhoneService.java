@@ -1,5 +1,6 @@
 package com.telerobot.fs.service;
 
+import com.alibaba.fastjson.JSON;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,7 +37,9 @@ public class PhoneService {
 				"acd_queue_time = ?, " +
 				"acd_wait_time = ?, " +
 				"empty_number_detection_text = ?, " +
-				"ivr_dtmf_digits = ? " +
+				"ivr_dtmf_digits = ?, " +
+				"manual_answered_time = ?, " +
+				"manual_answered_time_len = ? " +
 				"WHERE id = ?";
 
 		jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
@@ -54,7 +57,7 @@ public class PhoneService {
 				ps.setLong(9, cp.getConnectedTime());
 				ps.setString(10, cp.getHangupCause());
 				ps.setLong(11, cp.getAnsweredTime());
-				ps.setString(12, cp.getDialogue());
+				ps.setString(12, JSON.toJSONString(cp.getDialogue()));
 				ps.setString(13, cp.getWavfile());
 				ps.setString(14, cp.getRecordServerUrl());
 				ps.setInt(15, cp.getDialogueCount());
@@ -63,7 +66,9 @@ public class PhoneService {
 				ps.setInt(18, cp.getAcdWaitTime());
 				ps.setString(19, cp.getEmptyNumberDetectionText());
 				ps.setString(20, cp.getIvrDtmfDigits());
-				ps.setString(21, cp.getId()); // WHERE id=?
+				ps.setLong(21, cp.getManualAnsweredTime());
+				ps.setLong(22, cp.getManualAnsweredTimeLen());
+				ps.setString(23, cp.getId()); // WHERE id=?
 			}
 
 			@Override

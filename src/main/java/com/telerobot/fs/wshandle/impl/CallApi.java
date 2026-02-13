@@ -785,6 +785,7 @@ public class CallApi extends MsgHandlerBase {
         String from = this.getSessionInfo().getOpNum();
         String to = callArgs.getArgs().getString("to");
         String transferType = callArgs.getArgs().getString("transferType");
+
         if(from.equalsIgnoreCase(to)){
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
@@ -796,6 +797,14 @@ public class CallApi extends MsgHandlerBase {
             sendReplyToAgent(new MessageResponse(
                     RespStatus.REQUEST_PARAM_ERROR,
                     "'to' argument is null in transferCall."
+            ));
+            return;
+        }
+
+        if(StringUtils.isNullOrEmpty(transferType)){
+            sendReplyToAgent(new MessageResponse(
+                    RespStatus.REQUEST_PARAM_ERROR,
+                    "'transferType' argument is null in transferCall."
             ));
             return;
         }
@@ -1017,7 +1026,7 @@ public class CallApi extends MsgHandlerBase {
         // 外呼网关地址
         String gatewayAddress = gatewayConfig.getGatewayAddr();
         // 主叫号码
-        String callerNumber = gatewayConfig.getCallerNumber();
+        String callerNumber =  CommonUtils.getCallerNumberRandomly(gatewayConfig.getCallerNumber());
         // 被叫前缀
         String calleePrefix = gatewayConfig.getCalleePrefix();
         String sipProfile = gatewayConfig.getCallProfile();
@@ -1057,14 +1066,27 @@ public class CallApi extends MsgHandlerBase {
                 gatewayAddress
         );
 
-        if(gatewayConfig.getRegister()){
+        if(gatewayConfig.getRegister() == 1){
             bridgeString = String.format("{execute_on_answer='record_session %s',%s%s}sofia/gateway/%s/%s%s  &park",
                     CallConfig.RECORDINGS_PATH + fullRecordPath,
                     callPrefixOuterLine,
                     extraParamsFinal,
-                    gatewayAddress,
+                    gatewayConfig.getGwName(),
                     calleePrefix,
                     phone
+            );
+        } else if(gatewayConfig.getRegister() == 2) {
+            String authUsername = gatewayConfig.getAuthUsername();
+            String dynamicGateway = CommonUtils.getDynamicGatewayAddr(authUsername, getTraceId());
+            logger.info("{} successfully get dynamic gateway address : {}", getTraceId(), dynamicGateway);
+            // for dynamic gateway, we must use internal profile
+            bridgeString = String.format("{execute_on_answer='record_session %s',%s%s}sofia/internal/%s%s@%s  &park()",
+                    CallConfig.RECORDINGS_PATH + fullRecordPath,
+                    callPrefixOuterLine,
+                    extraParamsFinal,
+                    calleePrefix,
+                    callee,
+                    dynamicGateway
             );
         }
 

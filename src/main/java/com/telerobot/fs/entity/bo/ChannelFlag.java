@@ -25,6 +25,11 @@ public enum ChannelFlag {
      */
     EXTERNAL_LINE("EXTERNAL_LINE", 4),
 
+    /**
+     * satisfaction survey required
+     */
+    SATISFACTION_SURVEY_REQUIRED("SATISFACTION_SURVEY_REQUIRED", 5),
+
 
     /**
      *  当前通话已收到振铃媒体

@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
 import com.telerobot.fs.entity.bo.ConferenceCommand;
+import com.telerobot.fs.global.BizThreadPoolForEsl;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.StringUtils;
@@ -91,6 +92,32 @@ public class CallListener implements IEslEventListener {
 
 	@Override
 	public void eventReceived(String addr, EslEvent event) {
+		BizThreadPoolForEsl.submitTask(new Runnable() {
+			@Override
+			public void run() {
+				eslCallBack(addr, event);
+			}
+		});
+	}
+
+	public void releaseGateway(){
+		if(customerChannel != null) {
+			synchronized (this.customerChannel.getUuid().intern()) {
+				if (customerChannel.getGatewayConfig() != null) {
+					logger.info("{} release gateway {}, callerUuid={}, calleeUuid={}.",
+							getTraceId(),
+							customerChannel.getGatewayConfig().getGwName() + " " + customerChannel.getGatewayConfig().getGatewayAddr(),
+							agentChannel.getUuid(),
+							customerChannel.getUuid()
+					);
+					SipGatewayLoadBalance.releaseGateway(customerChannel.getGatewayConfig());
+					customerChannel.setGatewayConfig(null);
+				}
+			}
+		}
+	}
+
+	private void eslCallBack(String addr, EslEvent event) {
 		Map<String, String> headers = event.getEventHeaders();
 		String uniqueId = headers.get("Unique-ID");
 		String eventName = headers.get("Event-Name");
@@ -173,10 +200,13 @@ public class CallListener implements IEslEventListener {
 			releaseSignal();
 
 		} else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
-
+			releaseGateway();
 			logger.info("{} recv CHANNEL_HANGUP event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
 				String hangupSipCode = headers.get("variable_sip_invite_failure_status");
+				if(StringUtils.isNullOrEmpty(hangupSipCode)){
+					hangupSipCode = "";
+				}
 				customerChannel.setHangupSipCode(hangupSipCode);
 				customerChannel.setHangupTime(System.currentTimeMillis());
 				customerChannel.setChannelState(ChanneState.HANGUP);
@@ -199,14 +229,6 @@ public class CallListener implements IEslEventListener {
 					customerChannel.getHangupHook().onHangup(headers, getTraceId());
 					customerChannel.setHangupHook(null);
 				}
-
-				synchronized (uniqueId.intern()) {
-					if (customerChannel.getGatewayConfig() != null) {
-						SipGatewayLoadBalance.releaseGateway(customerChannel.getGatewayConfig());
-						customerChannel.setGatewayConfig(null);
-					}
-				}
-
 			} else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				agentChannel.setHangupTime(System.currentTimeMillis());
 				agentChannel.setChannelState(ChanneState.HANGUP);
@@ -215,8 +237,12 @@ public class CallListener implements IEslEventListener {
 				if (agentChannel.getCallMonitorInfo() != null) {
 					CallMonitorDataPull.remove(agentChannel.getCallMonitorInfo());
 				}
+				if (agentChannel.getHangupHook() != null) {
+					agentChannel.getHangupHook().onHangup(headers, getTraceId());
+					agentChannel.setHangupHook(null);
+				}
 
-				if (!agentChannel.testFlag(ChannelFlag.RE_INVITE_VIDEO)) {
+ 				if (!agentChannel.testFlag(ChannelFlag.RE_INVITE_VIDEO)) {
 					if (agentChannel.getSendChannelStatusToWsClient()) {
 						JSONObject jsonObject = new JSONObject();
 						String hangupSipCode = headers.get("variable_sip_invite_failure_status");
@@ -227,6 +253,11 @@ public class CallListener implements IEslEventListener {
 						);
 					}
 
+					if(customerChannel.testFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED)){
+						logger.info("{} satisfaction survey is required for this session , we wait for this process.", getTraceId());
+						return;
+					}
+
 					if (!customerChannel.testFlag(ChannelFlag.HOLD_CALL)) {
 						logger.info("{} extension is hangup，so we must kill customerChannel.", getTraceId());
 						EslConnectionUtil.sendExecuteCommand(
@@ -235,11 +266,6 @@ public class CallListener implements IEslEventListener {
 								customerChannel.getUuid()
 						);
 					}
-				}
-
-				if (agentChannel.getHangupHook() != null) {
-					agentChannel.getHangupHook().onHangup(headers, getTraceId());
-					agentChannel.setHangupHook(null);
 				}
 			}
 			releaseSignal();
@@ -333,6 +359,11 @@ public class CallListener implements IEslEventListener {
 			customerChannel.getRecvBgApiResultHook().onRecv(event.toString(), getTraceId());
 			customerChannel.setRecvBgApiResultHook(null);
 		}
+	}
+
+	@Override
+	public String context() {
+		return this.getClass().getName();
 	}
 
 	public void clearCustomerHoldCallFlag(){

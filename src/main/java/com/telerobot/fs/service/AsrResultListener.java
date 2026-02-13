@@ -1,5 +1,6 @@
 package com.telerobot.fs.service;
 
+import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.config.UuidGenerator;
 import com.telerobot.fs.entity.dto.AlibabaTokenEntity;
@@ -27,8 +28,11 @@ import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -70,6 +74,8 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
         eslConnectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
         eslConnectionPool.getDefaultEslConn().addDefaultListener(this);
     }
+
+
 
     private void startDestroy() {
         int sleepMills = 7000;
@@ -113,10 +119,42 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
         logger.info("backgroundJobResultReceived : {} ", event.toString());
     }
 
+    @Override
+    public String context() {
+        return this.getClass().getName();
+    }
+
     /**
      * 保存所有通话信息的容器
      */
     private static Map<String, AsrEntity> asrInfoContainer = new ConcurrentHashMap<>(1000);
+
+    /**
+     *  Get dialogues by call uuid.
+     * @param uuid
+     * @return
+     */
+    public static  List<JSONObject> getDialogueByUuid(String uuid) {
+        AsrEntity asrEntity = asrInfoContainer.get(uuid);
+        if (asrEntity == null) {
+            return new ArrayList<>();
+        }
+
+        List<JSONObject> list = new ArrayList<>(50);
+        ArrayBlockingQueue<AsrResult> dialogues = asrEntity.getAsrResults();
+        AsrResult asrResult;
+        while ((asrResult = dialogues.poll()) != null) {
+            if(asrResult.getVadType() == 1) {
+                JSONObject message = new JSONObject();
+                message.put("role", asrResult.getRole() == 1 ? "user" : "agent");
+                message.put("content", asrResult.getText());
+                message.put("content_type", "text");
+                list.add(message);
+            }
+        }
+        logger.info("{} ASR result: dialogues count={}", uuid, list.size());
+        return list;
+    }
 
     /**
      * 启动一个通话的asr识别流程; 同时启动对坐席和客户的语音识别
@@ -132,6 +170,9 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
                 );
                 EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), uuid);
                 EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), uuid);
+
+                EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_token=" + token.getToken(), callMonitorInfo.getUuidAgent());
+                EslConnectionUtil.sendExecuteCommand("set", "aliyun_tts_app_key=" + token.getAppkey(), callMonitorInfo.getUuidAgent());
             }
         }
         logger.info("{} Try to start real-time voice recognition for call-center manual agent. asrProvider={}",uuid, asrProvider);
@@ -195,7 +236,7 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
                 return;
             }
 
-            int eventCode = RespStatus.ASR_RESULT_GENERATE;
+            int eventCode = RespStatus.ASR_RESULT_GENERATED;
             int role = 2;
             if(uniqueId.equalsIgnoreCase(asrEntity.getUuidCustomer())){
                 role = 1;

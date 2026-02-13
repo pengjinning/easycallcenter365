@@ -5,7 +5,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%class:%line] - %m %n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%level] [%class:%line] - %m %n</pattern>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>DEBUG</level>
@@ -16,7 +16,7 @@
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${logPath}.log</file>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%class:%line] - %m %n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%level] [%class:%line] - %m %n</pattern>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>DEBUG</level>
@@ -35,7 +35,7 @@
     <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${logPath}-ERROR.log</file>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%level] [%class:%line] - %m %n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%level] [%class:%line] - %m %n</pattern>
         </encoder>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>ERROR</level> 

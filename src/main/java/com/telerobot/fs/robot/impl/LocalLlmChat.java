@@ -26,7 +26,7 @@ public class LocalLlmChat extends AbstractChatRobot {
     public static final String HANGUP = "hangupCall";
 
     @Override
-    public LlmAiphoneRes  talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
         LlmAiphoneRes aiphoneRes = new  LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);

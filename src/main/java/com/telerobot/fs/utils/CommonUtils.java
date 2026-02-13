@@ -6,9 +6,13 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.JWTVerifier;
 import com.telerobot.fs.config.SystemConfig;
+import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.po.FunAsrResultEntity;
+import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.wshandle.MessageResponse;
 import com.telerobot.fs.wshandle.RespStatus;
+import link.thingscloud.freeswitch.esl.EslConnectionUtil;
+import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +35,67 @@ import java.util.zip.ZipOutputStream;
  */
 public class CommonUtils<T>  {
 	private static final Logger logger = LoggerFactory.getLogger(CommonUtils.class);
+
+	public static void hangupCallSession(String uuid, String reason){
+		EslConnectionUtil.sendExecuteCommand("hangup", reason, uuid);
+	}
+
+	public static void setHangupCauseDetail(InboundDetail callDetail, HangupCause cause, String details){
+		JSONObject jsonObject = new JSONObject();
+		jsonObject.put("code", cause.getCode());
+		jsonObject.put("details", details);
+		String json = jsonObject.toJSONString();
+
+		if(callDetail.getOutboundPhoneInfo() != null) {
+			if(com.telerobot.fs.utils.StringUtils.isNullOrEmpty(callDetail.getOutboundPhoneInfo().getHangupCause())) {
+				callDetail.getOutboundPhoneInfo().setHangupCause(json);
+			}
+		}
+		if(com.telerobot.fs.utils.StringUtils.isNullOrEmpty(callDetail.getHangupCause())) {
+			callDetail.setHangupCause(json);
+		}
+	}
+
+	public static void setHangupCauseDetail(InboundDetail callDetail, String cause, String details){
+		JSONObject jsonObject = new JSONObject();
+		jsonObject.put("code", cause);
+		jsonObject.put("details", details);
+		String json = jsonObject.toJSONString();
+
+		if(callDetail.getOutboundPhoneInfo() != null) {
+			callDetail.getOutboundPhoneInfo().setHangupCause(json);
+		}
+		callDetail.setHangupCause(json);
+	}
+
+	/**
+	 *  get dynamic gateway ip address and port
+	 * @return
+	 */
+	public static String getDynamicGatewayAddr(String extensionNumber, String traceId){
+		EslMessage response = EslConnectionUtil.sendSyncApiCommand("sofia", "xmlstatus profile internal reg");
+		StringBuilder xml = new StringBuilder();
+		for(String s : response.getBodyLines()){
+			xml.append(s);
+		}
+		String xmlStr = xml.toString();
+		logger.info("{} execute cmd 'sofia xmlstatus profile internal reg', response length={}", traceId, xml.length());
+		return XmlUtils.parseFsOnlineUserListXml(xmlStr, extensionNumber);
+	}
+
+	/**
+	 * Randomly obtain a outbound display number
+	 * @return
+	 */
+	public static String getCallerNumberRandomly(String callers){
+		if(callers.contains("\n")){
+			String[] array = callers.split("\\n");
+			int index = RandomUtils.getRandomByRange(0, array.length - 1);
+			return array[index].trim();
+		}else{
+			return callers.trim();
+		}
+	}
 
     public static  boolean safeCreateDirectory(String dir){
 		File directory = new File(dir);

@@ -22,7 +22,7 @@ import java.io.IOException;
 public class LocalNlpChat extends AbstractChatRobot {
 
     @Override
-    public LlmAiphoneRes  talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
         LlmAiphoneRes aiphoneRes = new  LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);

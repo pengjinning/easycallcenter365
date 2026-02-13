@@ -14,6 +14,7 @@ import com.telerobot.fs.entity.po.CdrDetail;
 import com.telerobot.fs.entity.po.CdrEntity;
 import com.telerobot.fs.entity.po.CdrEntityEx;
 import com.telerobot.fs.global.CdrPush;
+import com.telerobot.fs.service.AsrResultListener;
 import com.telerobot.fs.service.CdrService;
 import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.RequestUtils;
@@ -31,7 +32,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 /**
- * Created by zl on 2015/8/27.
  *  优化后，增加了ValidTimeLenMills字段，记录通话的时长，精确到毫秒；
  *  产生的话单数据可用于计费使用;
  *  注意2点事项：
@@ -146,9 +146,9 @@ public class CdrControllerEx {
 		}
 		cdrEntity.setHangup_cause(hangup_cause);
 		cdrEntity.setFullRecordPath(fullRecordPath);
+		cdrEntity.setChatContent(JSON.toJSONString(AsrResultListener.getDialogueByUuid(uuid)));
 
-		if(service.saveCdr(cdrEntity))
-		{
+		if(service.saveCdr(cdrEntity)) {
 			CdrDetail cdrDetail = new CdrDetail();
 			cdrDetail.setUuid(uuid);
 			cdrDetail.setCdrType("outbound");

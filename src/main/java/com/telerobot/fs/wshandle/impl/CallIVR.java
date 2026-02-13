@@ -1,5 +1,6 @@
 package com.telerobot.fs.wshandle.impl;
 
+import com.telerobot.fs.global.BizThreadPoolForEsl;
 import com.telerobot.fs.utils.ThreadUtil;
 import com.telerobot.fs.wshandle.WebsocketThreadPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
@@ -35,8 +36,18 @@ public class CallIVR  {
             private String getTraceId() {
                 return uuid;
             }
+
             @Override
             public void eventReceived(String addr, EslEvent event) {
+                BizThreadPoolForEsl.submitTask(new Runnable() {
+                    @Override
+                    public void run() {
+                        processCallBaCK(addr, event);
+                    }
+                });
+            }
+
+            public void processCallBaCK(String addr, EslEvent event) {
                 Map<String, String> headers = event.getEventHeaders();
                 String uniqueId = headers.get("Unique-ID");
                 String eventName = headers.get("Event-Name");
@@ -100,6 +111,11 @@ public class CallIVR  {
 
             @Override
             public void backgroundJobResultReceived(String addr, EslEvent event) {
+            }
+
+            @Override
+            public String context() {
+                return CallIVR.class.getName();
             }
         };
 

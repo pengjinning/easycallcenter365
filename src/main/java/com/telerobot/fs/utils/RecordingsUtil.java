@@ -8,6 +8,7 @@ import com.telerobot.fs.global.CdrPush;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,9 +40,14 @@ public class RecordingsUtil {
             @Override
             public void backgroundJobResultReceived(String addr, EslEvent event) {
             }
+
+            @Override
+            public String context() {
+                return RecordingsUtil.class.getName();
+            }
         };
 
-        String subscriberKey = uuid + "-ex2";
+        String subscriberKey = uuid + UuidKeys.RECORDINGS;
         EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(subscriberKey, listener);
         String recordDir = SystemConfig.getValue("recording_path", "/home/Records/");
         logger.info("{} start record_session wav/mp4 {}{}", uuid, recordDir , mediaFile);

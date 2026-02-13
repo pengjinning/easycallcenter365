@@ -1,14 +1,16 @@
 package com.telerobot.fs.ivr;
 
 import com.alibaba.fastjson.JSON;
+import com.telerobot.fs.config.AudioUtils;
+import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
-import com.telerobot.fs.utils.RegExp;
-import com.telerobot.fs.utils.StringUtils;
-import com.telerobot.fs.utils.ThreadUtil;
+import com.telerobot.fs.global.BizThreadPoolForEsl;
+import com.telerobot.fs.utils.*;
 import com.telerobot.fs.wshandle.MessageResponse;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,7 @@ public class IvrSession {
     private String ttsProvider;
     private String voiceCode;
     private InboundDetail callDetail;
+    private int waitPlaybackFinishedTimeoutMs;
 
     private final static Logger logger = LoggerFactory.getLogger(IvrSession.class);
     private String getTraceId(){
@@ -108,9 +111,10 @@ public class IvrSession {
         }
 
         public void waitForStreamTtsPlaybackFinished(){
+
             logger.info("{} wait for stream tts playback finished.", getTraceId());
             try {
-                ttsChannelCloseSignal.tryAcquire(1, 35, TimeUnit.SECONDS);
+                ttsChannelCloseSignal.tryAcquire(1, waitPlaybackFinishedTimeoutMs, TimeUnit.SECONDS);
             }catch (Throwable e){
             }
         }
@@ -118,17 +122,24 @@ public class IvrSession {
         public void waitForWavPlaybackFinished(){
             logger.info("{} wait for wav file playback finished.", getTraceId());
             try {
-                wavPlaybackFinishedSignal.tryAcquire(1, 35, TimeUnit.SECONDS);
+                wavPlaybackFinishedSignal.tryAcquire(1, waitPlaybackFinishedTimeoutMs, TimeUnit.SECONDS);
             }catch (Throwable e){
             }
         }
 
         public void waitForPlaybackEnd(){
+            logger.info("{} enter into waitForPlaybackEnd, lastPlaybackType={}. ",
+                    sessionId, lastPlaybackType);
             if(lastPlaybackType.equalsIgnoreCase(PlaybackType.PLAYBACK_TEXT)){
                 waitForStreamTtsPlaybackFinished();
             }else if(lastPlaybackType.equalsIgnoreCase(PlaybackType.PLAYBACK_WAV)){
                 waitForWavPlaybackFinished();
+            }else{
+                logger.error("{} cant not execute 'waitForPlaybackEnd', lastPlaybackType={}. ",
+                        sessionId, lastPlaybackType);
             }
+            logger.info("{} exit function waitForPlaybackEnd, lastPlaybackType={}. ",
+                    sessionId, lastPlaybackType);
         }
 
         public void waitForDtmfInputCompleted(){
@@ -157,7 +168,7 @@ public class IvrSession {
             }
         }
 
-        private void resetDTMF() {
+        public void resetDTMF() {
             inputFinished = false;
             playBackInterrupted = false;
             inputValidateSuccess = false;
@@ -189,23 +200,36 @@ public class IvrSession {
             logger.info("{} The final user dtmf input is {}. ",  getTraceId(), userInput);
         }
 
-        public void play(String ttsText){
-            // Play TTS voice
-            if (ttsText.endsWith(".wav") || ttsText.endsWith(".mp3")) {
-                File audioFile = new File(ttsText);
-                if(audioFile.exists()) {
-                    // Play audio file
-                    playAudio(ttsText);
-                }else{
-                    logger.error("{} audio file '{}' not exists, can not play it.", getTraceId(), ttsText);
+
+        public void play(String text, String wavFilePath){
+            if(text.contains("{") && text.contains("}")){
+                List<String> list = IvrPlaceholderUtils.extractPlaceholders(text);
+                if(list.size() > 0){
+                    logger.info("{} {} variables was detected in the ttsText string. Currently, only dynamic synthesis of TTS voices is possible.",
+                            getTraceId(), list.size());
+                    playTtsText(text);
+                    return;
                 }
-            } else {
+            }
+
+            // Play TTS voice
+            if (wavFilePath.endsWith(".wav") || wavFilePath.endsWith(".mp3")) {
+                File audioFile = new File(wavFilePath);
+                if(audioFile.exists()) {
+                    logger.info("{} Try to playAudio: {}, wavFilePath: {}.",  getTraceId(), text, wavFilePath);
+                    // Play audio file
+                    playAudio(wavFilePath);
+                }else{
+                    logger.error("{} audio file '{}' not exists, can not play it. As an alternative solution, we try to playTtsText: {}.",
+                            getTraceId(), wavFilePath, text);
+                    // TTS text to speech
+                    playTtsText(text);
+                }
+            }else{
                 // TTS text to speech
-                playTtsText(ttsText);
+                playTtsText(text);
             }
         }
-
-
 
         /**
          * Play TTS voice
@@ -213,6 +237,7 @@ public class IvrSession {
         public void playTtsText(String text) {
             lastPlaybackType = PlaybackType.PLAYBACK_TEXT;
             if (text != null && !text.trim().isEmpty()) {
+                setWavPlaybackTimeout();
                 String args = String.format("%s|%s|%s", ttsProvider, voiceCode, text);
                 logger.info("Play TTS: SessionID={}, Text={}", sessionId, args);
                 EslConnectionUtil.sendExecuteCommand("speak",
@@ -223,6 +248,7 @@ public class IvrSession {
                 waitForTtsChannelOpen();
 
                 if(streamTtsChannelOpened) {
+                    logger.info("{} stream tts channel has been opened, send close tts command. ", getTraceId());
                     EslConnectionUtil.sendExecuteCommand(ttsProvider + "_resume", "<StopSynthesis/>", sessionId);
                 }else{
                     logger.warn("{} stream tts channel has not opened yet. ", getTraceId());
@@ -235,49 +261,66 @@ public class IvrSession {
          */
         public void playAudio(String filePath) {
             lastPlaybackType = PlaybackType.PLAYBACK_WAV;
+            long durationMills =  AudioUtils.getWavFileDuration(filePath);
+            logger.info("{} The duration of wav file '{}' is {}", sessionId, filePath,  durationMills);
+            setWavPlaybackTimeout( (int)(durationMills/1000));
             EslConnectionUtil.sendExecuteCommand("playback", filePath, sessionId);
             logger.info("Play audio: SessionID={}, File={}", sessionId, filePath);
         }
 
         @Override
         public void eventReceived(String addr, EslEvent event) {
+            BizThreadPoolForEsl.submitTask(new Runnable() {
+                @Override
+                public void run() {
+                    processEslCallBack(addr, event);
+                }
+            });
+        }
+
+        public void processEslCallBack(String addr, EslEvent event) {
             Map<String, String> headers = event.getEventHeaders();
             String eventName = headers.get("Event-Name");
             String eventDateTimestamp = headers.get("Event-Date-Timestamp");
             String eventSubClass = headers.get("Event-Subclass");
-            String appData = headers.get("variable_current_application_data");
+            String playbackFilePath = headers.get("Playback-File-Path");
+            String detail = headers.get("Ecc365-Event-Detail");
+            logger.info("{} IvrSession:eventReceived, eventName={}, appData={}, eventDetail={}", getTraceId(), eventName, playbackFilePath, detail);
             if(null != eventDateTimestamp) {
                 // esl消息从产生到被处理的延迟时间; 毫秒数
                 long eventTime = Long.parseLong(eventDateTimestamp) / 1000L;
                 long timeDelay = System.currentTimeMillis() - eventTime;
                 logger.info("{} The [{}] event takes {} ms from generation to processing.", getTraceId(), eventName, timeDelay);
             }
-
             logger.info("{}  Event-Name：{} ", getTraceId(), eventName);
             if(EventNames.PLAYBACK_START.equalsIgnoreCase(eventName)){
                 playBackInterrupted = false;
 
-                if(!StringUtils.isNullOrEmpty(appData) && !appData.contains(".wav")) {
+                if(EventNames.PLAYBACK_START.equalsIgnoreCase(detail)) {
                     logger.info("{} streaming tts playback has been started.", getTraceId());
                     streamTtsChannelOpened = true;
                     ttsChannelOpenSignal.release();
-                }else {
-                    logger.info("{} wav file playback has been started.", getTraceId());
+                }
+                if(!StringUtils.isNullOrEmpty(playbackFilePath) && playbackFilePath.endsWith(".wav")) {
+                    logger.info("{} wav file playback has been started. appData={}", getTraceId(), playbackFilePath);
                 }
             }else if(EventNames.PLAYBACK_STOP.equalsIgnoreCase(eventName)){
 
-                if(!StringUtils.isNullOrEmpty(appData) && !appData.contains(".wav")) {
+                if(EventNames.PLAYBACK_STOP.equalsIgnoreCase(detail)) {
                     logger.info("{} streaming tts playback has been finished.", getTraceId());
-                }else {
-                    logger.info("{} wav file playback has been finished.", getTraceId());
+                }
+
+                if(!StringUtils.isNullOrEmpty(playbackFilePath) && playbackFilePath.endsWith(".wav")) {
+                    logger.info("{} wav file playback has been finished. appData={}", getTraceId(), playbackFilePath);
                     wavPlaybackFinishedSignal.release();
                 }
 
             }else if(EventNames.DTMF.equalsIgnoreCase(eventName)){
+                String digit = headers.get("DTMF-Digit");
                 if(!ivrProcessStarted){
+                    logger.info("{} ivr process has not been started, skip dtmf input {}.", sessionId, digit);
                     return;
                 }
-                String digit = headers.get("DTMF-Digit");
                 logger.info("{} recv DTMF event, digit={}, currentNode info: max={}, min={}, range={}, timeout={}, nodeId={}, rootId={}.",
                         getTraceId(),
                         digit,
@@ -311,7 +354,7 @@ public class IvrSession {
                         returnToPreviousNode = true;
                         inputValidateSuccess = true;
                         dtmfInputCompletedSignal.release();
-                        logger.warn("{} The user pressed # , to return to previous node. ", sessionId);
+                        logger.warn("{} user pressed # , to return to previous node. ", sessionId);
                         return;
                     }
 
@@ -388,6 +431,11 @@ public class IvrSession {
         @Override
         public void backgroundJobResultReceived(java.lang.String addr, EslEvent event) {
         }
+
+        @Override
+        public String context() {
+            return IvrSession.class.getName();
+        }
     };
     private EslListener eslListener;
     public EslListener getEsl(){
@@ -405,10 +453,22 @@ public class IvrSession {
         this.sessionData = new ConcurrentHashMap<>();
         this.createTime = System.currentTimeMillis();
         this.lastActiveTime = createTime;
+        setWavPlaybackTimeout();
         eslListener  = new EslListener();
         EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(
-                sessionId + "-ivr",  eslListener
+                sessionId + UuidKeys.IVR,  eslListener
         );
+    }
+
+    private void setWavPlaybackTimeout(int... timeout){
+        if(timeout.length > 0){
+            if(timeout[0] > 3) {
+                this.waitPlaybackFinishedTimeoutMs = timeout[0] + 2;
+            }
+        }else {
+            this.waitPlaybackFinishedTimeoutMs = Integer.parseInt(SystemConfig.getValue("ivr-wait-playback-finished-timeout", "35"));
+        }
+        logger.info("{} waitPlaybackFinishedTimeoutMs has been set to {}", this.getSessionId(), waitPlaybackFinishedTimeoutMs);
     }
 
     // getter and setter methods

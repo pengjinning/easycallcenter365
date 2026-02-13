@@ -3,10 +3,14 @@ package com.telerobot.fs.robot.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.telerobot.fs.config.AppContextProvider;
+import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.LlmAccount;
+import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
 import com.telerobot.fs.robot.AbstractChatRobot;
+import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.utils.CommonUtils;
 import okhttp3.MediaType;
 import okhttp3.Request;
@@ -22,18 +26,44 @@ import java.util.List;
 public class DeepSeekChat extends AbstractChatRobot {
 
     @Override
-    public LlmAiphoneRes  talkWithAiAgent(String question) {
-        LlmAiphoneRes aiphoneRes = new  LlmAiphoneRes();
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
+        LlmAiphoneRes aiphoneRes = new LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);
         aiphoneRes.setIfcan_interrupt(0);
-        if(firstRound) {
+        if (firstRound) {
             firstRound = false;
-            String tips = ((LlmAccount)getAccount()).getLlmTips() + "\n" + ((LlmAccount)getAccount()).getFaqContext();
-            // + "\n 本次通话的客户信息如下:" + callDetail.getOutboundPhoneInfo().getBizJson();
+
+            String llmTips = ((LlmAccount) getAccount()).getLlmTips();
+            int catId = llmAccountInfo.kbCatId;
+            String topicsVar = "${kbTopicList}";
+            if(catId != -1) {
+                if (llmTips.contains(topicsVar)) {
+                    List<LlmKb> kbList = AppContextProvider.getBean(SysService.class).getKbListByCatId(catId);
+                    StringBuilder topics = new StringBuilder();
+                    for (LlmKb llmKb : kbList) {
+                        topics.append("*").append(llmKb.getTitle()).append("\r\n");
+                    }
+                    topics.append("\r\n");
+                    llmTips = llmTips.replace(topicsVar, topics.toString());
+                    logger.info("{} topic list: {}", uuid, topics.toString());
+                } else {
+                    logger.warn("{} {} tag not found, the knowledge base function will be unavailable. ", uuid, topicsVar);
+                }
+            }else {
+                logger.warn("{} The current model {} doesn’t have a knowledge base linked to it. ", uuid, ((LlmAccount) getAccount()).getModelName());
+            }
+
+            String tips = llmTips  + "\r\n\r\n" + ((LlmAccount) getAccount()).getFaqContext();
+            JSONObject bizJson = new JSONObject();
+            if (null != callDetail && null != callDetail.getOutboundPhoneInfo() && StringUtils.isNotBlank(callDetail.getOutboundPhoneInfo().getBizJson())) {
+                tips += "\n bizJson:" + callDetail.getOutboundPhoneInfo().getBizJson();
+                bizJson = JSONObject.parseObject(callDetail.getOutboundPhoneInfo().getBizJson());
+            }
             addDialogue(ROLE_SYSTEM, tips);
 
-            String openingRemarks = llmAccountInfo.openingRemarks;
+            String openingRemarks = replaceParams(llmAccountInfo.openingRemarks, bizJson);
+
             addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);
@@ -41,40 +71,39 @@ public class DeepSeekChat extends AbstractChatRobot {
             closeTts();
 
             aiphoneRes.setBody(openingRemarks);
-        }else{
-            if(!StringUtils.isEmpty(question)) {
-                addDialogue(ROLE_USER, question);
-            }else{
-                addDialogue(ROLE_USER, "NO_VOICE");
+            return aiphoneRes;
+        } else {
+            if (withKbResponse.length > 0 && !withKbResponse[0]) {
+                if (!StringUtils.isEmpty(question)) {
+                    addDialogue(ROLE_USER, question);
+                } else {
+                    addDialogue(ROLE_USER, "NO_VOICE");
 
-                String noVoiceTips = llmAccountInfo.customerNoVoiceTips;
-                addDialogue(ROLE_ASSISTANT, noVoiceTips);
+                    String noVoiceTips = llmAccountInfo.customerNoVoiceTips;
+                    addDialogue(ROLE_ASSISTANT, noVoiceTips);
 
-                ttsTextCache.add(noVoiceTips);
-                sendToTts();
-                closeTts();
+                    ttsTextCache.add(noVoiceTips);
+                    sendToTts();
+                    closeTts();
 
-                aiphoneRes.setBody(noVoiceTips);
+                    aiphoneRes.setBody(noVoiceTips);
+                }
             }
-        }
 
-        if(!firstRound && !StringUtils.isEmpty(question)) {
             try {
                 JSONObject response = sendStreamingRequest(aiphoneRes, llmRoundMessages);
-                if(null != response) {
+                if (null != response) {
                     llmRoundMessages.add(response);
-                }else{
+                } else {
                     aiphoneRes.setStatus_code(0);
                 }
             } catch (Throwable throwable) {
                 aiphoneRes.setStatus_code(0);
                 logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
             }
+            return aiphoneRes;
         }
-
-        return aiphoneRes;
     }
-
 
 
     private  JSONObject sendStreamingRequest(LlmAiphoneRes aiphoneRes, List<JSONObject> messages) throws IOException {
@@ -109,6 +138,22 @@ public class DeepSeekChat extends AbstractChatRobot {
                         response.message(),
                         getAccount().serverUrl
                 );
+                if(response.code() == HttpStatus.SC_UNAUTHORIZED) {
+                   CommonUtils.setHangupCauseDetail(
+                           callDetail,
+                           HangupCause.LLM_API_KEY_INCORRECT,
+                           "http-status-code=" + response.code()
+                   );
+                  CommonUtils.hangupCallSession(uuid,  HangupCause.LLM_API_KEY_INCORRECT.getCode());
+                  return null;
+                }else{
+                    CommonUtils.setHangupCauseDetail(
+                            callDetail,
+                            HangupCause.LLM_API_SERVER_ERROR,
+                            "http-status-code=" + response.code()
+                    );
+                }
+
                 if(response.code() == HttpStatus.SC_UNAUTHORIZED || response.code() >= HttpStatus.SC_INTERNAL_SERVER_ERROR) {
                     throw new IOException("Unexpected code " + response);
                 }else{

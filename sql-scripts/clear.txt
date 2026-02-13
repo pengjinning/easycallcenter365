@@ -12,9 +12,6 @@ truncate table  sys_oper_log;
 SELECT * FROM cc_tts_aliyun  WHERE voice_code LIKE 'S\\_%' ESCAPE '\\';
 delete FROM cc_tts_aliyun  WHERE voice_code LIKE 'S\\_%' ESCAPE '\\';
 
-update cc_params set param_value='' where param_code='doubao-tts-account-json' ;
-update cc_params set param_value='' where param_code='aliyun-tts-account-json' ;
-
 reset master;
 
 
@@ -28,5 +25,8 @@ reset master;
    
    
 3. delete gateway config files:   
-   rm -rf /home/freeswitch/etc/freeswitch/sip_profile/internal/*.xml   
-   rm -rf /home/freeswitch/etc/freeswitch/sip_profile/external/*.xml
+   rm -rf /home/freeswitch/etc/freeswitch/sip_profiles/internal/*.xml   
+   rm -rf /home/freeswitch/etc/freeswitch/sip_profiles/external/*.xml
+    
+4. update version info:
+   update sys_config set config_value='v20260217' where config_key='sys.version';

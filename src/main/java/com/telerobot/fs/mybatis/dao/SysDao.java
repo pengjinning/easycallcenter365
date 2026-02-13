@@ -65,5 +65,8 @@ public interface SysDao {
 
     List<BizGroup> getAllGroupList();
 
-	LlmKb getKbContentByCat(String cat);
+	LlmKb getKbContentByCat(int catId, String title);
+
+	List<LlmKb> getKbListByCatId(int catId);
+
 }

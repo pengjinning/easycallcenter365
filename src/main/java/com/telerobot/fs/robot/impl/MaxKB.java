@@ -23,7 +23,7 @@ public class MaxKB extends AbstractChatRobot {
     private String chat_id = "";
 
     @Override
-    public LlmAiphoneRes talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
         LlmAiphoneRes aiphoneRes = new LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);

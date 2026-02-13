@@ -22,14 +22,14 @@ import java.util.List;
 public class JiutianChat extends AbstractChatRobot {
 
     @Override
-    public LlmAiphoneRes  talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
         LlmAiphoneRes aiphoneRes = new  LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);
         aiphoneRes.setIfcan_interrupt(0);
         if(firstRound) {
             firstRound = false;
-            String tips = ((LlmAccount)getAccount()).getLlmTips() + "\n" + ((LlmAccount)getAccount()).getFaqContext();
+            String tips = ((LlmAccount)getAccount()).getLlmTips() + "\r\n\r\n" + ((LlmAccount)getAccount()).getFaqContext();
             addDialogue(ROLE_SYSTEM, tips);
 
             String openingRemarks = llmAccountInfo.openingRemarks;

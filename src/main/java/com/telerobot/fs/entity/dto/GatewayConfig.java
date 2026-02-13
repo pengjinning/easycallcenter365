@@ -54,7 +54,10 @@ public class GatewayConfig {
     /**
      * 是否注册模式
      */
-    private boolean  register  = false;
+    private int  register  = 0;
+
+    private String authUsername = "";
+
     /**
      * 语音编码，可用选择项 g711、g729
      */
@@ -63,7 +66,8 @@ public class GatewayConfig {
     public GatewayConfig() {
     }
 
-    public GatewayConfig(long updateTime, String callProfile, String uuid, String gatewayAddr, String callerNumber, String calleePrefix, Integer priority, Integer concurrency, boolean register, String audioCodec) {
+    public GatewayConfig(long updateTime, String callProfile, String uuid, String gatewayAddr, String callerNumber, String calleePrefix, Integer priority,
+                         Integer concurrency, int register, String audioCodec) {
         this.updateTime = updateTime;
         this.callProfile = callProfile;
         this.uuid = uuid;
@@ -116,11 +120,11 @@ public class GatewayConfig {
         this.concurrency = concurrency;
     }
 
-    public boolean getRegister() {
+    public int getRegister() {
         return register;
     }
 
-    public void setRegister(boolean register) {
+    public void setRegister(int register) {
         this.register = register;
     }
 
@@ -196,6 +200,14 @@ public class GatewayConfig {
 
     public void setGwName(String gwName) {
         this.gwName = gwName;
+    }
+
+    public String getAuthUsername() {
+        return authUsername;
+    }
+
+    public void setAuthUsername(String authUsername) {
+        this.authUsername = authUsername;
     }
 
     @Override

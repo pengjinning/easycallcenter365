@@ -1,7 +1,11 @@
 package com.telerobot.fs.service;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.telerobot.fs.config.AppContextProvider;
+import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.po.ExtensionRegisterInfo;
+import com.telerobot.fs.entity.po.LicenseInfo;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
 import com.telerobot.fs.wshandle.MessageHandlerEngine;
@@ -68,6 +72,7 @@ public class EslMsgDefaultListener implements ApplicationListener<ApplicationRea
 
     private static final String SOFIA_REGISTER_EVENT = "sofia::register";
     private static final String SOFIA_UN_REGISTER_EVENT = "sofia::unregister";
+    private static final String SYSTEM_GLOBAL_EVENT = "Ecc365GlobalEvent";
     private static final String UNKNOWN = "unknown";
 
     public void processFsMsg(Map<String, String> headers) {
@@ -86,6 +91,43 @@ public class EslMsgDefaultListener implements ApplicationListener<ApplicationRea
                     sendNotice(RespStatus.EXTENSION_OFF_LINE, "Extension offline.", headers);
                 }
             }
+
+            if(SYSTEM_GLOBAL_EVENT.equalsIgnoreCase(eventSubClass)){
+                String eventDetail =  headers.get("Ecc365-Event-Detail");
+                logger.info("recv {} eventDetail={}  ", SYSTEM_GLOBAL_EVENT, eventDetail);
+                switch (eventDetail){
+                    case "License-Info":
+                        try {
+                            saveLicenseInfo(headers);
+                        }catch (Throwable e){
+                            logger.error("saveLicenseInfo() error! {} {}", e.toString(),
+                                    CommonUtils.getStackTraceString(e.getStackTrace())
+                            );
+                        }
+                        break;
+                    default:
+                        logger.error("unknown event {}", eventDetail);
+                }
+            }
+        }
+    }
+
+    /**
+     *  save license info to data table 'cc_params'
+     */
+    private void saveLicenseInfo(Map<String, String> headers){
+        LicenseInfo licenseInfo = new LicenseInfo();
+        licenseInfo.setConcurrency(Integer.parseInt(headers.get("Concurrency")));
+        licenseInfo.setModules(headers.get("Modules"));;
+        licenseInfo.setExpireDate(Long.parseLong(headers.get("Expire-Date")));
+        licenseInfo.setUpdateTime(Long.parseLong(headers.get("Update-Time")));
+        String json = JSON.toJSONString(licenseInfo);
+        int affectRow = AppContextProvider.getBean(SysService.class).updateParam("system_license_info",
+                json);
+        if(affectRow == 1){
+            logger.info("saveLicenseInfo successfully.");
+        }else {
+            logger.error("saveLicenseInfo failed. affectRow={}", affectRow);
         }
     }
 
@@ -106,5 +148,10 @@ public class EslMsgDefaultListener implements ApplicationListener<ApplicationRea
     @Override
     public void backgroundJobResultReceived(String addr, EslEvent event) {
 
+    }
+
+    @Override
+    public String context() {
+        return this.getClass().getName();
     }
 }

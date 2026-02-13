@@ -2,7 +2,6 @@ package com.telerobot.fs.robot;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.google.gson.JsonObject;
 import com.telerobot.fs.acd.AcdSqlQueue;
 import com.telerobot.fs.acd.CallHandler;
 import com.telerobot.fs.acd.InboundGroupHandler;
@@ -13,15 +12,19 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.po.CdrDetail;
+import com.telerobot.fs.global.BizThreadPoolForEsl;
 import com.telerobot.fs.global.CdrPush;
+import com.telerobot.fs.ivr.IvrEngine;
 import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.RegExp;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadUtil;
+import com.telerobot.fs.wshandle.WebsocketThreadPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.slf4j.Logger;
@@ -32,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *  TransferToAgent
@@ -43,25 +47,38 @@ public class TransferToAgent {
     /**
      *  transfer to acd queue
      */
-    private static final String TRANSFER_TO_ACD = "acd";
+    public static final String TRANSFER_TO_ACD = "acd";
 
     /**
      *  transfer to external gateway
      */
-    private static final String TRANSFER_TO_GATEWAY = "gateway";
+    public static final String TRANSFER_TO_GATEWAY = "gateway";
 
     /**
      *  transfer to extension
      */
-    private static final String  TRANSFER_TO_EXTENSION = "extension";
+    public static final String  TRANSFER_TO_EXTENSION = "extension";
 
 
     /**
      *  transfer a call session to acd queue or an external gateway
      * @param callDetail
      */
-    public  static  void transfer(InboundDetail callDetail, String transferType, String transferData){
+    public  static  void transfer(InboundDetail callDetail, AccountBaseEntity account){
+        String transferType = account.aiTransferType;
+        String transferData = account.aiTransferData;
+        String satisfSurveyIvrId = account.satisfSurveyIvrId;
+        transfer(callDetail, transferType, transferData, satisfSurveyIvrId);
+    }
+
+    public  static  void transfer(InboundDetail callDetail,  String transferType,
+                                  String transferData, String satisfSurveyIvrId) {
         logger.info("{} transfer-to-agent-type = {} .", callDetail.getUuid(), transferType);
+        AccountBaseEntity account = new AccountBaseEntity();
+        account.satisfSurveyIvrId = satisfSurveyIvrId;
+        account.aiTransferData = transferData;
+        account.aiTransferType = transferType;
+
         if(transferType.equalsIgnoreCase(TRANSFER_TO_ACD)) {
             logger.info("{} Try to add call to acd queue .", callDetail.getUuid());
             String groupId = "0";
@@ -70,231 +87,185 @@ public class TransferToAgent {
             }
             callDetail.setGroupId(groupId);
             CallHandler callHandler = new CallHandler(callDetail);
+            callHandler.setSatisfSurveyIvrId(satisfSurveyIvrId);
             if (InboundGroupHandler.addCallToQueue(callHandler, callDetail.getGroupId())) {
                 logger.info("{} Successfully add call to acd queue", callDetail.getUuid());
             }
         }else  if(transferType.equalsIgnoreCase(TRANSFER_TO_GATEWAY)) {
             logger.info("{} Try to bridge call to external gateway. {}", callDetail.getUuid(),  transferData);
-            transferToAgentUsingGateway(callDetail, transferData);
+            transferToAgentUsingGateway(callDetail, account);
         }else  if(transferType.equalsIgnoreCase(TRANSFER_TO_EXTENSION)) {
             logger.info("{} Try to bridge call to internal extension. {}", callDetail.getUuid(), transferData);
-            transferToAgentUsingExtension(callDetail, transferData);
+            transferToAgentUsingExtension(callDetail, account);
         }
     }
+
+
+    private static void bridgeCall(InboundDetail inboundDetail, List<String> calleeList,
+                                   String bridgeString, String calleeUuid, int callTimeout,
+                                   AccountBaseEntity account){
+        EslConnectionUtil.sendExecuteCommand(
+                "set",
+                "park_after_bridge=true",
+                inboundDetail.getUuid(),
+                EslConnectionUtil.getDefaultEslConnectionPool()
+        );
+        ThreadUtil.sleep(300);
+
+        final AtomicBoolean answered = new AtomicBoolean(false);
+        Semaphore continueSignal = new Semaphore(0);
+        boolean playedWaitMusic = false;
+        while (!inboundDetail.getHangup() && !answered.get()) {
+            for (String calleeNumber : calleeList) {
+                if (inboundDetail.getHangup() || answered.get()) {
+                    break;
+                }
+                inboundDetail.setCallee(calleeNumber);
+                inboundDetail.setExtnum(calleeNumber);
+                inboundDetail.setOpnum(calleeNumber);
+
+                final AtomicBoolean calleeHangup = new AtomicBoolean(false);
+                TransferListener listener = new TransferListener(inboundDetail, calleeUuid,
+                        account, answered, continueSignal, calleeHangup);
+                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(calleeUuid, listener);
+                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(inboundDetail.getUuid(), listener);
+                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn()
+                        .removeOtherListenersExcludeByUuidKeys(inboundDetail.getUuid(),
+                                new String[]{UuidKeys.DEFAULT, UuidKeys.BATCH_CALL}
+                );
+
+                if(!playedWaitMusic) {
+                    playedWaitMusic = true;
+                    listener.playWaitMusic();
+                    listener.waitForPlayBackStartSignal();
+                    ThreadUtil.sleep(200);
+                }
+
+                String originateStr =  bridgeString.replace("callee_number", calleeNumber);
+                String jobId = EslConnectionUtil.sendAsyncApiCommand(
+                        "originate",
+                        originateStr
+                );
+                if(!StringUtils.isNullOrEmpty(jobId)){
+                    logger.info("{} get originate jobId: {} ", inboundDetail.getUuid(), jobId);
+                    EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(jobId, listener);
+                }
+
+                try {
+                    if (!inboundDetail.getHangup() && !answered.get()) {
+                        long timeout =  (callTimeout + 5) * 1000L;
+                        continueSignal.tryAcquire(1, timeout, TimeUnit.MILLISECONDS);
+
+                        if(!answered.get() && !calleeHangup.get()){
+                            logger.info("{} originate call for callee  timeout, hangup session.", inboundDetail.getUuid());
+                            EslConnectionUtil.sendExecuteCommand("hangup", "", calleeUuid);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                }
+
+                ThreadUtil.sleep(3000);
+            }
+        }
+    }
+
 
     /**
      *  For simplicity, when transferring calls to extensions, uniformly use the same queue name.
      *  There is no distinction between outbound calls and inbound calls.
      *
-     *  If the extension needs to answer a call from a human,
-     *  it should dial 611. To stop answering, it should dial 612
      * @param inboundDetail
      */
-    private static void transferToAgentUsingExtension(InboundDetail inboundDetail, String extensions) {
+    private static void transferToAgentUsingExtension(InboundDetail inboundDetail,AccountBaseEntity account) {
+        String extensions = account.aiTransferData;
         List<String> extensionList = RegExp.GetMatchFromStringByRegExp(extensions, "\\d{4}");
         if (extensionList.size() == 0) {
             logger.error("invalid extensions, can not transfer to extension.");
             return;
         }
 
-        EslConnectionUtil.sendExecuteCommand(
-                "playback",
-                "$${sounds_dir}/ivr/keep.wav",
-                inboundDetail.getUuid()
+        int callTimeout = 30;
+        String calleeUuid = UuidGenerator.GetOneUuid();
+        String bridgeString = String.format(
+                " {absolute_codec_string=pcma,origination_uuid=%s,hangup_after_bridge=false,originate_timeout=%d,origination_caller_id_number=%s,effective_caller_id_number=%s}user/%s  &park",
+                calleeUuid,
+                callTimeout,
+                inboundDetail.getCaller(),
+                inboundDetail.getCaller(),
+                "callee_number"
         );
 
-        int callTimeout = 30;
-        final boolean[] answered = {false};
-        Semaphore signal = new Semaphore(0);
-        while (!inboundDetail.getHangup() && !answered[0]) {
-            for (String extNum : extensionList) {
-                if (inboundDetail.getHangup() || answered[0]) {
-                    break;
-                }
-                String extensionUuid = UuidGenerator.GetOneUuid();
-                String bridgeString = String.format(
-                        " {origination_uuid=%s,hangup_after_bridge=true,originate_timeout=%d,origination_caller_id_number=%s,effective_caller_id_number=%s}user/%s  &park",
-                        extensionUuid,
-                        callTimeout,
-                        inboundDetail.getCaller(),
-                        inboundDetail.getCaller(),
-                        extNum.trim()
-                );
-
-                inboundDetail.setCallee(extNum);
-                inboundDetail.setExtnum(extNum);
-                inboundDetail.setOpnum(extNum);
-
-                IEslEventListener listener = new IEslEventListener() {
-                    private volatile boolean hangup = false;
-                    private Semaphore parkSemaphore = new Semaphore(0);
-                    @Override
-                    public synchronized void eventReceived(String addr, EslEvent event) {
-                        Map<String, String> headers = event.getEventHeaders();
-                        String uniqueId = headers.get("Unique-ID");
-                        String eventName = headers.get("Event-Name");
-                        if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
-                            if(extensionUuid.equalsIgnoreCase(uniqueId)) {
-                                try {
-                                    parkSemaphore.tryAcquire(1200L, TimeUnit.MILLISECONDS);
-                                }catch (Throwable e){
-                                }
-
-                                inboundDetail.setAnsweredTime(System.currentTimeMillis());
-                                answered[0] = true;
-                                signal.release();
-
-                                EslConnectionUtil.sendSyncApiCommand("uuid_break" , String.format("%s all", inboundDetail.getUuid()));
-                                ThreadUtil.sleep(1000);
-
-                                logger.info("{} extension answered, try to bridge call session.", inboundDetail.getUuid());
-                                String bridgeParam = extensionUuid + " " +  inboundDetail.getUuid();
-                                EslMessage message = EslConnectionUtil.sendSyncApiCommand("uuid_bridge", bridgeParam);
-
-                                logger.info("{} call session bridge result: {}.", inboundDetail.getUuid(), JSON.toJSONString(message));
-                            }
-                        }if(EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)){
-                            if(extensionUuid.equalsIgnoreCase(uniqueId)) {
-                                parkSemaphore.release();
-                            }
-                        }
-                        else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
-                            signal.release();
-
-                            if (uniqueId.equalsIgnoreCase(inboundDetail.getUuid())) {
-                                inboundDetail.setHangup(true);
-                                if (inboundDetail.getAnsweredTime() > 0L) {
-                                    inboundDetail.setAnsweredTimeLen(System.currentTimeMillis() - inboundDetail.getAnsweredTime());
-                                }
-                                inboundDetail.setTimeLen(System.currentTimeMillis() - inboundDetail.getInboundTime());
-                                inboundDetail.setHangupTime(System.currentTimeMillis());
-                                AcdSqlQueue.addToSqlQueue(inboundDetail);
-                                CdrDetail cdrDetail = new CdrDetail();
-                                cdrDetail.setUuid(inboundDetail.getUuid());
-
-                                if (inboundDetail.getOutboundPhoneInfo() == null) {
-                                    cdrDetail.setCdrType("inbound");
-                                } else {
-                                    cdrDetail.setCdrType("outbound");
-                                }
-                                // 推送话单;
-                                cdrDetail.setCdrBody(JSON.toJSONString(inboundDetail));
-                                CdrPush.addCdrToQueue(cdrDetail);
-                                logger.info("{} cdr has been pushed.", inboundDetail.getUuid());
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void backgroundJobResultReceived(String addr, EslEvent event) {
-                    }
-                };
-                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(extensionUuid, listener);
-                EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(inboundDetail.getUuid(), listener);
-                logger.info("{} try to call extension: {}", inboundDetail.getUuid(), bridgeString);
-                EslConnectionUtil.sendAsyncApiCommand(
-                        "originate",
-                        bridgeString
-                );
-
-                try {
-                    if (!inboundDetail.getHangup() && !answered[0]) {
-                        long timeout =  (callTimeout + 5) * 1000L;
-                        signal.tryAcquire(1, timeout, TimeUnit.MILLISECONDS);
-                    }
-                } catch (InterruptedException e) {
-                }
-            }
-        }
+        bridgeCall(inboundDetail, extensionList, bridgeString, calleeUuid, callTimeout, account);
     }
 
-    private static void transferToAgentUsingGateway(InboundDetail inboundDetail, String gatewayJson) {
-
+    /**
+     *  When the external line is connected,
+     *  transfer the customer's call to a manual agent
+     *  while suppressing the ring-back tone during the intermediate steps.
+     * @param inboundDetail
+     * @param account
+     */
+    private static void transferToAgentUsingGateway(InboundDetail inboundDetail, AccountBaseEntity account) {
+        String gatewayJson = account.aiTransferData;
         JSONObject jsonObject = JSON.parseObject(gatewayJson);
         int gatewayId = jsonObject.getInteger("gatewayId");
-        String destPhone = jsonObject.getString("destNumber");
+        String destPhone = "callee_number";
         GatewayConfig gatewayInfo = AppContextProvider.getBean(CallTaskService.class).getGatewayConfigById(gatewayId);
 
         String extraParams = SystemConfig.getValue("outbound-call-extra-params-for-profile-"+  gatewayInfo.getCallProfile() , "");
-        String extraParamsFinal =  extraParams.length() == 0 ? "" : extraParams + ",";
+        String extraParamsFinal =  extraParams.length() == 0 ? "" : "," + extraParams ;
 
         String outboundUuid = UuidGenerator.GetOneUuid();
+        int callTimeout = 50;
+        String callerNumber = CommonUtils.getCallerNumberRandomly(gatewayInfo.getCallerNumber());
         String bridgeString = String.format(
-                "{origination_uuid=%s,origination_caller_id_number=%s,effective_caller_id_number=%s%s}sofia/%s/%s%s@%s ",
+                "{hangup_after_bridge=false,absolute_codec_string=%s,originate_timeout=%d,origination_uuid=%s,origination_caller_id_number=%s,effective_caller_id_number=%s%s}sofia/%s/%s%s@%s  &park",
+                gatewayInfo.getAudioCodec(),
+                callTimeout,
                 outboundUuid,
-                gatewayInfo.getCallerNumber(),
-                gatewayInfo.getCallerNumber(),
+                callerNumber,
+                callerNumber,
                 extraParamsFinal,
                 gatewayInfo.getCallProfile(),
                 gatewayInfo.getCalleePrefix(),
                 destPhone,
                 gatewayInfo.getGatewayAddr()
         );
-        //设置bridge后挂机;
-        EslConnectionUtil.sendExecuteCommand(
-                "set",
-                "hangup_after_bridge=true",
-                inboundDetail.getUuid(),
-                EslConnectionUtil.getDefaultEslConnectionPool()
-        );
-        inboundDetail.setCallee(destPhone);
-        inboundDetail.setExtnum(destPhone);
-        inboundDetail.setOpnum(destPhone);
 
-        IEslEventListener listener = new IEslEventListener() {
-            private volatile boolean hangup = false;
-            @Override
-            public synchronized void eventReceived(String addr, EslEvent event) {
-                Map<String, String> headers = event.getEventHeaders();
-                String uniqueId = headers.get("Unique-ID");
-                String eventName = headers.get("Event-Name");
-                if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
-                    inboundDetail.setAnsweredTime(System.currentTimeMillis());
-                } else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
-                    if(!hangup){
-                        hangup = true;
-                        // 推送话单;
-                        if(inboundDetail.getAnsweredTime() > 0L) {
-                            inboundDetail.setAnsweredTimeLen(System.currentTimeMillis() - inboundDetail.getAnsweredTime());
-                        }
-                        inboundDetail.setTimeLen(System.currentTimeMillis() - inboundDetail.getInboundTime());
-                        inboundDetail.setHangupTime(System.currentTimeMillis());
-                        AcdSqlQueue.addToSqlQueue(inboundDetail);
-                        CdrDetail cdrDetail = new CdrDetail();
-                        cdrDetail.setUuid(inboundDetail.getUuid());
+        if(gatewayInfo.getRegister() == 1){
+            bridgeString = String.format(
+                    "{hangup_after_bridge=false,absolute_codec_string=%s,originate_timeout=%d,origination_uuid=%s,origination_caller_id_number=%s,effective_caller_id_number=%s%s}sofia/gateway/%s/%s%s  &park",
+                    gatewayInfo.getAudioCodec(),
+                    callTimeout,
+                    outboundUuid,
+                    callerNumber,
+                    callerNumber,
+                    extraParamsFinal,
+                    gatewayInfo.getGwName(),
+                    gatewayInfo.getCalleePrefix(),
+                    destPhone
+            );
+        } else if(gatewayInfo.getRegister() == 2) {
+            String authUsername = gatewayInfo.getAuthUsername();
+            String dynamicGateway = CommonUtils.getDynamicGatewayAddr(authUsername, inboundDetail.getUuid());
+            logger.info("{} successfully get dynamic gateway address : {}", inboundDetail.getUuid(), dynamicGateway);
+            // for dynamic gateway, we must use internal profile
+            bridgeString = String.format("{hangup_after_bridge=false,absolute_codec_string=%s,originate_timeout=%d,origination_uuid=%s,origination_caller_id_number=%s,effective_caller_id_number=%s%s}sofia/internal/%s%s@%s  &park",
+                    gatewayInfo.getAudioCodec(),
+                    callTimeout,
+                    outboundUuid,
+                    callerNumber,
+                    callerNumber,
+                    extraParamsFinal,
+                    gatewayInfo.getCalleePrefix(),
+                    destPhone,
+                    dynamicGateway
+            );
+        }
 
-                        if(inboundDetail.getOutboundPhoneInfo() == null) {
-                            cdrDetail.setCdrType("inbound");
-                        }else{
-                            cdrDetail.setCdrType("outbound");
-                        }
-
-                        cdrDetail.setCdrBody(JSON.toJSONString(inboundDetail));
-                        CdrPush.addCdrToQueue(cdrDetail);
-                        logger.info("{} cdr has been pushed.", inboundDetail.getUuid());
-                    }
-                    String uuidKill = "";
-                    if(uniqueId.equals(outboundUuid)){
-                        uuidKill = inboundDetail.getUuid();
-                    }else{
-                        uuidKill = outboundUuid;
-                    }
-                    EslConnectionUtil.sendAsyncApiCommand("uuid_kill", uuidKill);
-                }
-            }
-            @Override
-            public void backgroundJobResultReceived(String addr, EslEvent event) {
-
-            }
-        };
-
-        EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(outboundUuid, listener);
-        EslConnectionUtil.getDefaultEslConnectionPool().getDefaultEslConn().addListener(inboundDetail.getUuid(), listener);
-        EslConnectionUtil.sendExecuteCommand(
-                "bridge",
-                bridgeString,
-                inboundDetail.getUuid()
-        );
+        List<String> calleeList = new ArrayList<>(6);
+        calleeList.add(jsonObject.getString("destNumber"));
+        bridgeCall(inboundDetail, calleeList, bridgeString, outboundUuid, callTimeout, account);
     }
 
 }

@@ -46,6 +46,16 @@ package com.telerobot.fs.entity.dto.llm;
     public String aiTransferData;
 
     /**
+     *   ivr id for inbound call session
+     */
+    public String ivrId;
+
+    /**
+     *  the IVR menu ID for satisfaction surveys
+     */
+    public String satisfSurveyIvrId;
+
+    /**
      *   voice interruption supported during the robot's speech:
      *   1: Keyword interruption, 0: No interruption, 2: Interrupt if there is a sound
      */
@@ -64,4 +74,6 @@ package com.telerobot.fs.entity.dto.llm;
     public int concurrentNum;
 
     public String transferManualDigit;
+
+    public int kbCatId;
 }

@@ -1,5 +1,9 @@
 package com.telerobot.fs.entity.dao;
 
+import com.alibaba.fastjson.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -23,7 +27,7 @@ public class CustmInfoEntity {
 	private volatile long connectedTime = 0L;
 	private volatile String hangupCause = "";
 	private volatile long  answeredTime = 0L;
-	private volatile String dialogue = "";
+	private volatile List<JSONObject> dialogue = new ArrayList<>(20);
 	private volatile String wavfile = "";
 	private volatile String recordServerUrl = "";
 	private volatile String bizJson = "";
@@ -35,11 +39,9 @@ public class CustmInfoEntity {
 	private volatile String ttsText;
 	private volatile String emptyNumberDetectionText = "";
 	private volatile String ivrDtmfDigits = "";
-
-	/**
-	 * The call has been taken over by a robot
-	 */
-	private volatile boolean callCenterRegisterListener = false;
+	private volatile long manualAnsweredTime = 0L;
+	private volatile long manualAnsweredTimeLen = 0L;
+    private volatile boolean transferred = false;
 
 	private volatile CallTaskEntity taskInfo;
 
@@ -53,6 +55,14 @@ public class CustmInfoEntity {
 		this.bizJson = json;
 		this.batchId = batchId;
 		this.ttsText = ttsText;
+	}
+
+	public boolean getTransferred() {
+		return transferred;
+	}
+
+	public void setTransferred(boolean transferred) {
+		this.transferred = transferred;
 	}
 
 	public String getId() {
@@ -175,11 +185,11 @@ public class CustmInfoEntity {
 		this.answeredTime = answeredTime;
 	}
 
-	public String getDialogue() {
+	public List<JSONObject> getDialogue() {
 		return dialogue;
 	}
 
-	public void setDialogue(String dialogue) {
+	public void setDialogue(List<JSONObject> dialogue) {
 		this.dialogue = dialogue;
 	}
 
@@ -247,14 +257,6 @@ public class CustmInfoEntity {
 		this.hangup = hangup;
 	}
 
-	public boolean getCallCenterRegisterListener() {
-		return callCenterRegisterListener;
-	}
-
-	public void setCallCenterRegisterListener(boolean callCenterRegisterListener) {
-		this.callCenterRegisterListener = callCenterRegisterListener;
-	}
-
 	public String getTtsText() {
 		return ttsText;
 	}
@@ -285,6 +287,22 @@ public class CustmInfoEntity {
 
 	public void setIvrDtmfDigits(String ivrDtmfDigits) {
 		this.ivrDtmfDigits = ivrDtmfDigits;
+	}
+
+	public long getManualAnsweredTime() {
+		return manualAnsweredTime;
+	}
+
+	public void setManualAnsweredTime(long manualAnsweredTime) {
+		this.manualAnsweredTime = manualAnsweredTime;
+	}
+
+	public long getManualAnsweredTimeLen() {
+		return manualAnsweredTimeLen;
+	}
+
+	public void setManualAnsweredTimeLen(long manualAnsweredTimeLen) {
+		this.manualAnsweredTimeLen = manualAnsweredTimeLen;
 	}
 
 	@Override

@@ -169,8 +169,12 @@ public class SysService {
 		 sysDao.setAgentStatusWithBusyLock(opNum, index, System.currentTimeMillis());
 	}
 
-	public LlmKb getKbContentByCat(String cat){
-		return sysDao.getKbContentByCat(cat);
+	public LlmKb getKbContentByCat(int catId, String title){
+		return sysDao.getKbContentByCat(catId, title);
+	}
+
+	public List<LlmKb> getKbListByCatId(int catId){
+		return sysDao.getKbListByCatId(catId);
 	}
 
 }

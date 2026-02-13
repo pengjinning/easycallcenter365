@@ -6,8 +6,11 @@ import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
+import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.entity.pojo.LlmToolRequest;
+import com.telerobot.fs.utils.RegExp;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
+import net.sf.json.regexp.RegexpUtils;
 import okhttp3.OkHttpClient;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -17,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public abstract class AbstractChatRobot implements IChatRobot {
 
@@ -54,6 +59,11 @@ public abstract class AbstractChatRobot implements IChatRobot {
     @Override
     public void setCallDetail(InboundDetail callDetail){
         this.callDetail = callDetail;
+    }
+
+    @Override
+    public InboundDetail getCallDetail( ){
+       return this.callDetail;
     }
 
     /**
@@ -126,12 +136,24 @@ public abstract class AbstractChatRobot implements IChatRobot {
         if(StringUtils.isEmpty(textParam)){
             return;
         }
+        // Replace the prompt words for manual transfer in the text with blank spaces.
+        if(textParam.contains(LlmToolRequest.TRANSFER_TO_TEL)){
+            List<String> matches = RegExp.GetMatchFromStringByRegExp(textParam, LlmToolRequest.TRANSFER_TO_TEL_REGEXP);
+            for (String match : matches) {
+                textParam = textParam.replace(match, "");
+            }
+        }
+
+        if(textParam.contains(LlmToolRequest.KB_QUERY)){
+            return;
+        }
+
         String text = textParam
                 .replace(LlmToolRequest.TRANSFER_TO_AGENT, "")
                 .replace(LlmToolRequest.HANGUP, "")
                 .replace("\\", "")
                 .replace("*", " ")
-                .replace("\n", " ");
+                .replace("\n", ", ");
 
         if (StringUtils.isEmpty(text)) {
             return;
@@ -192,8 +214,8 @@ public abstract class AbstractChatRobot implements IChatRobot {
     }
 
     @Override
-    public String getDialogues(){
-        return JSON.toJSONString(llmRoundMessages);
+    public List<JSONObject> getDialogues(){
+        return llmRoundMessages;
     }
 
     @Override
@@ -201,6 +223,24 @@ public abstract class AbstractChatRobot implements IChatRobot {
         this.ttsChannelState = state;
     }
 
-    @Override
-    public abstract LlmAiphoneRes talkWithAiAgent(String question);
+
+    public String replaceParams(String speechContent, JSONObject bizJson) {
+        // 定义占位符的正则表达式
+        Pattern pattern = Pattern.compile("\\{(.*?)\\}");
+        Matcher matcher = pattern.matcher(speechContent);
+        // 替换所有匹配的占位符
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String variableName = matcher.group(1);
+            String variableValue = bizJson.getString(variableName);
+            if (StringUtils.isBlank(variableValue)) {
+                variableValue = "";
+            }
+            matcher.appendReplacement(sb, variableValue);
+        }
+        matcher.appendTail(sb);
+
+        // 返回替换后的文本
+        return sb.toString();
+    }
 }

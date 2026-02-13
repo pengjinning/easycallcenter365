@@ -23,6 +23,7 @@ public class LlmAccountParser {
             entity.interruptIgnoreKeywords = accountJSON.getInterruptIgnoreKeywords();
             entity.concurrentNum = accountJSON.getConcurrentNum();
             entity.transferManualDigit = accountJSON.getTransferManualDigit();
+            entity.kbCatId = accountJSON.getKbCatId();
             return entity;
         } catch (Throwable e) {
             logger.error("parse llmAccount error for accountId={}, {} {} ", accountJSON.getId(),

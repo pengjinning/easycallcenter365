@@ -198,7 +198,7 @@ public class BatchTaskManager implements Runnable {
 
         if(preventRepeatRunTask()){
             String tips = String.format("outbound task is running, %s=%d, Stop the current outbound call request!",  this.batchName, this.batchId);
-            log.error(tips);
+            log.warn(tips);
             needStopTask = true;
             return;
         }
@@ -623,11 +623,11 @@ public class BatchTaskManager implements Runnable {
             }
         }
 
-        int waitTimeOut = 1 * 50 * 1000;
-        int waitUnit = 5000;
+        int waitTimeOut = 5 * 60 * 1000;
+        int waitUnit = 3000;
         int totalLooper = waitTimeOut / waitUnit;
         int looper = 0;
-        //设置50秒的超时时间
+        //the timeout is 5 minutes
         while (getThreadNumUsed() != 0 && looper <= totalLooper){
             looper ++;
             log.info(getTraceId() + " Awaiting completion of all calls...");

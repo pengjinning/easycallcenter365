@@ -16,11 +16,16 @@
 	</update>
 
 	<select id="getKbContentByCat" resultType="com.telerobot.fs.entity.dao.LlmKb">
-		select id, cat, content
+		select id, title, content
 		 from cc_llm_kb
-		where cat=#{cat}
+		where  cat_id=#{catId} and title=#{title}  limit 1
 	</select>
 
+	<select id="getKbListByCatId" resultType="com.telerobot.fs.entity.dao.LlmKb">
+		select id, title
+		 from cc_llm_kb
+		where  cat_id=#{catId}
+	</select>
 
 	<insert id="addOnlineUser" useGeneratedKeys="false" keyProperty="id"
 			parameterType="com.telerobot.fs.entity.po.AgentEntity">

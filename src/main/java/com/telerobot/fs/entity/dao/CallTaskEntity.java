@@ -33,6 +33,8 @@ public class CallTaskEntity {
     private String codec;
     private String gwName;
     private String profileName;
+    private int register;
+    private String authUsername;
 
 	/**
 	 *  voice call play times
@@ -324,5 +326,21 @@ public class CallTaskEntity {
 
 	public void setIvrId(String ivrId) {
 		this.ivrId = ivrId;
+	}
+
+	public int getRegister() {
+		return register;
+	}
+
+	public void setRegister(int register) {
+		this.register = register;
+	}
+
+	public String getAuthUsername() {
+		return authUsername;
+	}
+
+	public void setAuthUsername(String authUsername) {
+		this.authUsername = authUsername;
 	}
 }

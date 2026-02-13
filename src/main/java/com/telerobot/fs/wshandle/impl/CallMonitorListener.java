@@ -1,5 +1,6 @@
 package com.telerobot.fs.wshandle.impl;
 
+import com.telerobot.fs.global.BizThreadPoolForEsl;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.wshandle.MessageResponse;
@@ -68,6 +69,15 @@ public class CallMonitorListener implements IEslEventListener {
 
     @Override
     public void eventReceived(String addr, EslEvent event) {
+        BizThreadPoolForEsl.submitTask(new Runnable() {
+            @Override
+            public void run() {
+                processCallBack(addr, event);
+            }
+        });
+    }
+
+    public void processCallBack(String addr, EslEvent event) {
         Map<String, String> headers = event.getEventHeaders();
         String uniqueId = headers.get("Unique-ID");
         String eventName = headers.get("Event-Name");
@@ -94,6 +104,11 @@ public class CallMonitorListener implements IEslEventListener {
             ProcessDialedFailCase(event.toString());
             this.unRegisterListener();
         }
+    }
+
+    @Override
+    public String context() {
+        return this.getClass().getName();
     }
 
     /***

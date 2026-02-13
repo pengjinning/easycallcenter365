@@ -18,6 +18,7 @@ import io.reactivex.schedulers.Schedulers;
 import link.thingscloud.freeswitch.esl.util.CurrentTimeMillisClock;
 import org.apache.commons.lang3.StringUtils;
 
+import javax.websocket.OnError;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -93,7 +94,7 @@ public class Coze  extends AbstractChatRobot {
     }
 
     @Override
-    public LlmAiphoneRes talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse){
         LlmAiphoneRes aiphoneRes = new LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);
@@ -189,6 +190,7 @@ public class Coze  extends AbstractChatRobot {
         long startTime = System.currentTimeMillis();
 
         resp.subscribeOn(Schedulers.io())
+
                 .subscribe(
                         event -> {
                             if (ChatEventType.CONVERSATION_MESSAGE_DELTA.equals(event.getEvent())) {

@@ -23,7 +23,7 @@ public class Dify extends AbstractChatRobot {
     private String chat_id = "";
 
     @Override
-    public LlmAiphoneRes talkWithAiAgent(String question) {
+    public LlmAiphoneRes  talkWithAiAgent(String question, Boolean... withKbResponse) {
         LlmAiphoneRes aiphoneRes = new LlmAiphoneRes();
         aiphoneRes.setStatus_code(1);
         aiphoneRes.setClose_phone(0);
@@ -31,7 +31,11 @@ public class Dify extends AbstractChatRobot {
         if(firstRound) {
             firstRound = false;
 
-            String openingRemarks = llmAccountInfo.openingRemarks;
+            JSONObject bizJson = new JSONObject();
+            if (null != callDetail && null != callDetail.getOutboundPhoneInfo() && StringUtils.isNotBlank( callDetail.getOutboundPhoneInfo().getBizJson())) {
+                bizJson = JSONObject.parseObject(callDetail.getOutboundPhoneInfo().getBizJson());
+            }
+            String openingRemarks = replaceParams(llmAccountInfo.openingRemarks, bizJson);
             addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);

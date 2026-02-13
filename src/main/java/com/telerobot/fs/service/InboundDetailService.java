@@ -1,5 +1,6 @@
 package com.telerobot.fs.service;
 
+import com.alibaba.fastjson.JSON;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dao.LlmAgentAccount;
@@ -27,6 +28,30 @@ public class InboundDetailService {
     private JdbcTemplate jdbcTemplate;
     private final static Logger logger = LoggerFactory.getLogger(InboundDetailService.class);
 
+    public InboundConfig getInboundConfigById(String id){
+        String checkSQL = "SELECT * FROM `cc_inbound_llm_account` WHERE id = '"+ id.replace("'", "") +"'";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(checkSQL);
+        Iterator<Map<String, Object>> it = rows.iterator();
+        while (it.hasNext()) {
+            InboundConfig inboundConfig = new InboundConfig();
+            Map<String, Object> map = (Map<String, Object>) it.next();
+            inboundConfig.setId((Integer)map.get("id"));
+            inboundConfig.setLlmAccountId((Integer)map.get("llm_account_id"));
+            inboundConfig.setVoiceCode(map.get("voice_code").toString());
+            inboundConfig.setVoiceSource(map.get("voice_source").toString());
+            inboundConfig.setAsrProvider(map.get("asr_provider").toString());
+            inboundConfig.setServiceType(map.get("service_type").toString());
+            inboundConfig.setAiTransferType(map.get("ai_transfer_type").toString());
+            inboundConfig.setAiTransferData(map.get("ai_transfer_data").toString());
+            inboundConfig.setIvrId(map.get("ivr_id").toString());
+            inboundConfig.setSatisfSurveyIvrId(map.get("satisf_survey_ivr_id").toString());
+            inboundConfig.setCallee(map.get("callee").toString());
+            return inboundConfig;
+        }
+
+        return null;
+    }
+
     public InboundConfig getInboundConfigByCallee(String callee){
         String checkSQL = "SELECT * FROM `cc_inbound_llm_account` WHERE callee = '"+ callee.replace("'", "") +"'";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(checkSQL);
@@ -42,6 +67,8 @@ public class InboundDetailService {
             inboundConfig.setServiceType(map.get("service_type").toString());
             inboundConfig.setAiTransferType(map.get("ai_transfer_type").toString());
             inboundConfig.setAiTransferData(map.get("ai_transfer_data").toString());
+            inboundConfig.setIvrId(map.get("ivr_id").toString());
+            inboundConfig.setSatisfSurveyIvrId(map.get("satisf_survey_ivr_id").toString());
             inboundConfig.setCallee(callee);
             return inboundConfig;
         }
@@ -93,7 +120,7 @@ public class InboundDetailService {
     public void updateInbound(final List<InboundDetail> dataList) {
         String sql = "UPDATE `cc_inbound_cdr` SET caller=?, callee=?, inbound_time=?, group_id=?, " +
                 "answered_time=?, extnum=?, opnum=?, hangup_time=?, answered_time_len=?, " +
-                "time_len=?, uuid=?, wav_file=?, chat_content=?, ivr_dtmf_digits=?  WHERE id=?";
+                "time_len=?, uuid=?, wav_file=?, chat_content=?, ivr_dtmf_digits=?, hangup_cause=?,manual_answered_time=?,manual_answered_time_len=?   WHERE id=?";
 
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
@@ -112,9 +139,13 @@ public class InboundDetailService {
                 preparedStatement.setLong(10, inbound.getTimeLen());
                 preparedStatement.setString(11, inbound.getUuid());
                 preparedStatement.setString(12, inbound.getWavFile());
-                preparedStatement.setString(13, inbound.getChatContent());
+                preparedStatement.setString(13, JSON.toJSONString(inbound.getChatContent()));
                 preparedStatement.setString(14, inbound.getIvrDtmfDigits());
-                preparedStatement.setString(15, inbound.getId());
+                preparedStatement.setString(15, inbound.getHangupCause());
+                preparedStatement.setLong(16, inbound.getManualAnsweredTime());
+                preparedStatement.setLong(17, inbound.getManualAnsweredTimeLen());
+                preparedStatement.setString(18, inbound.getId());
+
             }
 
             @Override

@@ -21,6 +21,7 @@ import link.thingscloud.freeswitch.esl.EslConnectionPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.EventNames;
+import link.thingscloud.freeswitch.esl.constant.UuidKeys;
 import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import link.thingscloud.freeswitch.esl.util.CurrentTimeMillisClock;
 import org.apache.commons.lang.StringUtils;
@@ -278,6 +279,42 @@ public class CallTask implements Runnable {
 		}
 	}
 
+	private volatile boolean recordingsStarted = false;
+	private synchronized void startWriteRecordings(String wavFile){
+		if(!recordingsStarted) {
+			RecordingsUtil.startRecordings(wavFile, callUuid);
+			recordingsStarted = true;
+		}
+	}
+
+	private volatile String wavFilePath = "";
+	private synchronized String getWavFilePath(){
+		if(StringUtils.isEmpty(wavFilePath)) {
+			String recordingsBaseDir = "";
+			switch (batchEntity.getTaskType()) {
+				case 0:
+					recordingsBaseDir = "batch_call";
+					break;
+				case 1:
+					recordingsBaseDir = "ai_call";
+					break;
+				case 2:
+					recordingsBaseDir = "voice_call";
+					break;
+				case 3:
+					recordingsBaseDir = "ivr";
+					break;
+				default:
+					recordingsBaseDir = "";
+			}
+			wavFilePath = String.format("%s/%s/%s.wav",
+					recordingsBaseDir,
+					DateUtils.format(new Date(), "yyyy/MM/dd/HH"),
+					callUuid
+			);
+		}
+		return wavFilePath;
+	}
 
 	/**
 	 *  Telephone call event listener
@@ -306,9 +343,8 @@ public class CallTask implements Runnable {
 				log.info("{} CHANNEL_HANGUP, uuid: {}", getTraceId(), uniqueID);
 				phoneInfo.setHangup(true);
 				releaseThreadNum();
-
-				if (phoneInfo.getCallCenterRegisterListener()) {
-					log.info("{} The call has been taken over by the robot. To avoid conflicts in call status recording, this module will no longer log call records. ",
+				if (phoneInfo.getTransferred()) {
+					log.info("{} The call has been transferred. To avoid conflicts in call status recording, this module will no longer log call records. ",
 							getTraceId());
 					return;
 				}
@@ -353,6 +389,12 @@ public class CallTask implements Runnable {
 				// empty-number-detection-enabled
 				if(Boolean.parseBoolean(SystemConfig.getValue("empty-number-detection-enabled", "false"))){
 					EslConnectionUtil.sendExecuteCommand("start_empty_number_detection",  "hello", uniqueID);
+				}
+				if(Boolean.parseBoolean(SystemConfig.getValue("start-write-recordings-on-ringing", "false"))){
+                    String wavFile = getWavFilePath();
+				    log.info("{} Start to write recordings file {}.", callUuid, wavFile);
+                    phoneInfo.setWavfile(wavFile);
+					startWriteRecordings(wavFile);
 				}
 			}else  if (EventNames.CUSTOM.equalsIgnoreCase(eventName)) {
 				if(phoneInfo.getConnectedTime() > 1){
@@ -406,33 +448,12 @@ public class CallTask implements Runnable {
 				phoneInfo.setTaskInfo(batchEntity);
 
 				try {
-
-					String recordingsBaseDir = "";
-					switch (batchEntity.getTaskType()) {
-						case 0:
-							recordingsBaseDir = "batch_call";
-							break;
-						case 1:
-							recordingsBaseDir = "ai_call";
-							break;
-						case 2:
-							recordingsBaseDir = "voice_call";
-							break;
-						default:
-							recordingsBaseDir = "";
-					}
-
-					String wavFile = String.format("%s/%s/%s.wav",
-							recordingsBaseDir,
-							DateUtils.format(new Date(now), "yyyy/MM/dd/HH"),
-							callUuid
-					);
-
+                    String wavFile = getWavFilePath();
 					phoneInfo.setWavfile(wavFile);
 					phoneInfo.setCallstatus(4);
 					ScheduledScanTask.addToSQLQueue(phoneInfo);
 
-                    RecordingsUtil.startRecordings(wavFile, uniqueID);
+					startWriteRecordings(wavFile);
 
 					InboundDetail inboundDetail = new InboundDetail(
 							callUuid,
@@ -462,7 +483,7 @@ public class CallTask implements Runnable {
 					}else if (batchEntity.getTaskType() == CallConfig.CALL_TYPE_PURE_AI_OUTBOUND_CALL) {
 						// transfer to robot
 						RobotChat robotChat = new RobotChat(inboundDetail, batchMonitor.getLlmAccount());
-						phoneInfo.setCallCenterRegisterListener(true);
+						phoneInfo.setTransferred(true);
 						if (!robotChat.getHangup()) {
 							robotConversationTaskThreadPool.execute(new Runnable() {
 								@Override
@@ -477,6 +498,14 @@ public class CallTask implements Runnable {
 						voiceCallPlayBackCounter ++;
 						playbackWavFile();
 					}else if(batchEntity.getTaskType() == CallConfig.CALL_TYPE_IVR_VOICE){
+						phoneInfo.setCallstatus(6);
+						phoneInfo.setAnsweredTime(System.currentTimeMillis());
+						ScheduledScanTask.addToSQLQueue(phoneInfo);
+
+						inboundDetail.setExtnum("ivr");
+						inboundDetail.setOpnum("ivr");
+						inboundDetail.setAnsweredTime(System.currentTimeMillis());
+
 						String ivrPlanId = batchEntity.getIvrId();
 						if(!StringUtils.isEmpty(ivrPlanId)) {
 							robotConversationTaskThreadPool.execute(new Runnable() {
@@ -534,6 +563,11 @@ public class CallTask implements Runnable {
 				releaseThreadNum();
 			}
 		}
+
+		@Override
+		public String context() {
+			return CallTask.class.getName();
+		}
 	};
 
 	private void playbackWavFile(){
@@ -575,6 +609,10 @@ public class CallTask implements Runnable {
 		return eslHeaders;
 	}
 
+
+
+
+
 	private void doCall() {
 		this.callUuid = UuidGenerator.GetOneUuid();
 		setTraceId(this.callUuid);
@@ -612,10 +650,8 @@ public class CallTask implements Runnable {
 			return;
 		}
 
-
-
-		log.info("{} Try send call request to freeSwitch Server {} ...",  getTraceId(),  this.phoneInfo.getTelephone());
-		String callerName = this.batchEntity.getCaller();
+		String callerName = CommonUtils.getCallerNumberRandomly(this.batchEntity.getCaller());
+		log.info("{} Try send call request to freeSwitch Server {} , callerName={} ...",  getTraceId(),  this.phoneInfo.getTelephone(), callerName);
 		this.eslConnectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
 		phoneInfo.setUuid(this.callUuid);
 		// 设置群呼的网关
@@ -651,14 +687,36 @@ public class CallTask implements Runnable {
 		String extraParams = SystemConfig.getValue("outbound-call-extra-params-for-profile-"+ batchEntity.getProfileName() , "");
 		String extraParamsFinal =  extraParams.length() == 0 ? "" :   "," + extraParams ;
 
-		String callParameter = String.format("{%s%s}sofia/%s/%s%s@%s  &park()",
-				callPrefix.toString(),
-				extraParamsFinal,
-				batchEntity.getProfileName(),
-				batchEntity.getCalleePrefix(),
-				callee,
-				batchEntity.getGwAddr()
-		);
+		String callParameter = "";
+		if(batchEntity.getRegister() == 0) {
+			callParameter = String.format("{%s%s}sofia/%s/%s%s@%s  &park()",
+					callPrefix.toString(),
+					extraParamsFinal,
+					batchEntity.getProfileName(),
+					batchEntity.getCalleePrefix(),
+					callee,
+					batchEntity.getGwAddr()
+			);
+		}else if(batchEntity.getRegister() == 1) {
+			callParameter = String.format("{%s}sofia/gateway/%s/%s%s  &park()",
+					callPrefix.toString(),
+					gateway,
+					batchEntity.getCalleePrefix(),
+					callee
+			);
+		}else if(batchEntity.getRegister() == 2) {
+			String authUsername = batchEntity.getAuthUsername();
+			String dynamicGateway = CommonUtils.getDynamicGatewayAddr(authUsername, getTraceId());
+			log.info("{} successfully get dynamic gateway address : {}", getTraceId(), dynamicGateway);
+			// for dynamic gateway, we must use internal profile
+			callParameter = String.format("{%s%s}sofia/internal/%s%s@%s  &park()",
+					callPrefix.toString(),
+					extraParamsFinal,
+					batchEntity.getCalleePrefix(),
+					callee,
+					dynamicGateway
+			);
+		}
 
 		phoneInfo.setCalloutTime(System.currentTimeMillis());
 		phoneInfo.setCallstatus(2);
@@ -666,7 +724,7 @@ public class CallTask implements Runnable {
 		phoneInfo.setCallcount(phoneInfo.getCallcount() + 1);
 
 		eslListener = new myESLEventListener(callUuid);
-		this.eslConnectionPool.getDefaultEslConn().addListener(this.callUuid + "-batchcall",  eslListener);
+		this.eslConnectionPool.getDefaultEslConn().addListener(this.callUuid + UuidKeys.BATCH_CALL,  eslListener);
 		log.info("{} Call Parameters: originate {}", getTraceId(),  callParameter);
 		String response = EslConnectionUtil.sendAsyncApiCommand("originate", callParameter, this.eslConnectionPool);
 		log.info("{} fs bgApi originate response: {}", getTraceId(),  response);
