@@ -75,7 +75,7 @@ public class FsEslStarter implements ApplicationListener<ApplicationReadyEvent> 
                 ThreadUtil.sleep(21000);
                 EslConnectionPool pool = EslConnectionUtil.getDefaultEslConnectionPool();
                 if(pool == null){
-                    logger.error("严重错误，无法连接到Freeswitch，请检查是否启动了.");
+                    logger.error("fatal error, cant not connect to FreeSWITCH Server.");
                     System.exit(1);
                 }
 

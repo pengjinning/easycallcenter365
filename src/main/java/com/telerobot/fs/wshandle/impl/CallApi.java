@@ -146,6 +146,7 @@ public class CallApi extends MsgHandlerBase {
             ));
             return;
         }
+
         // Use the callWait processor to keep the current customer call  on hold with background music.
         sendCustomerCallToCallWaitHandle();
 
@@ -171,26 +172,26 @@ public class CallApi extends MsgHandlerBase {
         String uuidInner = UuidGenerator.GetOneUuid();
         String uuidOuter = UuidGenerator.GetOneUuid();
 
-        SwitchChannel customerChannel = new SwitchChannel(uuidOuter, uuidInner, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
+        SwitchChannel consultationChannel = new SwitchChannel(uuidOuter, uuidInner, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
         SwitchChannel agentChannel = new SwitchChannel(uuidInner, uuidOuter, PhoneCallType.AUDIO_CALL, CallDirection.INBOUND);
 
-        customerChannel.setPhoneNumber(to);
-        customerChannel.setBridgeCallAfterPark(true);
-        customerChannel.setSendChannelStatusToWsClient(true);
+        consultationChannel.setPhoneNumber(to);
+        consultationChannel.setBridgeCallAfterPark(true);
+        consultationChannel.setSendChannelStatusToWsClient(true);
         agentChannel.setPhoneNumber(getExtNum());
         agentChannel.setBridgeCallAfterPark(false);
         agentChannel.setSendChannelStatusToWsClient(true);
 
-        this.connectExtension(agentChannel, customerChannel);
+        this.connectExtension(agentChannel, consultationChannel);
         EslConnectionPool connectionPool = EslConnectionUtil.getDefaultEslConnectionPool();
         connectionPool.getDefaultEslConn().addListener(agentChannel.getUuid(), listener);
-        connectionPool.getDefaultEslConn().addListener(customerChannel.getUuid(), listener);
+        connectionPool.getDefaultEslConn().addListener(consultationChannel.getUuid(), listener);
 
         if (agentChannel.getAnsweredTime() > 0) {
 
             if(transferType.equalsIgnoreCase("outer")){
-                customerChannel.setFlag(ChannelFlag.EXTERNAL_LINE);
-                this.bridgeAgentToExternalLineForConsultation(customerChannel, agentChannel, from, to);
+                consultationChannel.setFlag(ChannelFlag.EXTERNAL_LINE);
+                this.bridgeAgentToExternalLineForConsultation(consultationChannel, agentChannel, from, to);
                 return;
             }
 
@@ -205,7 +206,7 @@ public class CallApi extends MsgHandlerBase {
                     return;
                 }
 
-                customerChannel.setPhoneNumber(engine.getSessionInfo().getExtNum());
+                consultationChannel.setPhoneNumber(engine.getSessionInfo().getExtNum());
 
                 JSONObject jsonObject = new JSONObject();
                 jsonObject.put("status", AgentStatus.busy.getIndex());
@@ -242,7 +243,7 @@ public class CallApi extends MsgHandlerBase {
                     return;
                 }
 
-                customerChannel.setAnsweredHook(new IOnAnsweredHook() {
+                consultationChannel.setAnsweredHook(new IOnAnsweredHook() {
                     @Override
                     public void onAnswered(Map<String, String> eventHeaders, String traceId) {
                         String tips = "The call consultation has started.";
@@ -283,9 +284,9 @@ public class CallApi extends MsgHandlerBase {
                     }
                 });
 
-                customerChannel.setAnsweredTime(0L);
-                callApi.connectExtension(customerChannel, agentChannel);
-                if (customerChannel.getAnsweredTime() <= 0) {
+                consultationChannel.setAnsweredTime(0L);
+                callApi.connectExtension(consultationChannel, agentChannel);
+                if (consultationChannel.getAnsweredTime() <= 0) {
                     logger.warn("{} The person being consulted has no answer, terminate call session. ", getTraceId());
                     this.listener.endCall("Consultation-call-failed.");
                 }
@@ -1093,7 +1094,7 @@ public class CallApi extends MsgHandlerBase {
         return bridgeString;
     }
 
-
+    private static final String BIZ_FIELD_DEFAULT_VALUE = "NOT_SET";
 
 	/**
 	 *  开始通话：
@@ -1134,8 +1135,14 @@ public class CallApi extends MsgHandlerBase {
             gatewayListArgs = callArgs.getArgs().getString("gatewayList");
         }
 
-        List<GatewayConfig> gatewayList = JSON.parseObject(gatewayListArgs, new TypeReference<List<GatewayConfig>>() {
-        });
+        List<GatewayConfig> gatewayList = null;
+        try {
+            gatewayList = JSON.parseObject(gatewayListArgs, new TypeReference<List<GatewayConfig>>() {
+            });
+        }catch (Throwable e){
+            logger.error("{} parse gatewayList parameter error! {}  \n {}", getTraceId(), e.toString(),
+                    CommonUtils.getStackTraceString(e.getStackTrace()));
+        }
         logger.info("gatewayListArgs={}", gatewayListArgs);
         if (null == gatewayList || gatewayList.size() == 0) {
             Utils.processArgsError("gatewayList parameter error!", thisRef);
@@ -1149,7 +1156,9 @@ public class CallApi extends MsgHandlerBase {
             caseNo = phoneAndCaseInfo.split(";")[1];
             phone = phoneAndCaseInfo.split(";")[0];
         } else {
-            caseNo = "notSet";
+            // This is a custom business field parameter.
+            // It will be carried when sending messages via WebSocket.
+            caseNo = BIZ_FIELD_DEFAULT_VALUE;
             phone = phoneAndCaseInfo;
         }
 
@@ -1170,6 +1179,7 @@ public class CallApi extends MsgHandlerBase {
         SwitchChannel customerChannel = new SwitchChannel(uuidOuter, uuidInner, callType, CallDirection.OUTBOUND);
 
         agentChannel.setVideoLevel(videoLevel);
+        agentChannel.setBizFieldValue(caseNo);
         agentChannel.setPhoneNumber(this.getExtNum());
         agentChannel.setSendChannelStatusToWsClient(true);
         customerChannel.setVideoLevel(videoLevel);
@@ -1214,7 +1224,9 @@ public class CallApi extends MsgHandlerBase {
 
         JSONObject outboundStartEvent = new JSONObject();
         outboundStartEvent.put("uuid", agentChannel.getUuid());
+        outboundStartEvent.put("uuid_customer", customerChannel.getUuid());
         outboundStartEvent.put("destPhone", customerChannel.getPhoneNumber());
+        outboundStartEvent.put("biz_field_value", caseNo);
         this.sendReplyToAgent(
                 new MessageResponse(
                         RespStatus.OUTBOUND_START,

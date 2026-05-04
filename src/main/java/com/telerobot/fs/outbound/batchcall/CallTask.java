@@ -12,6 +12,8 @@ import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dao.CallTaskEntity;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.entity.dto.EmptyNumberDetectionConfig;
+import com.telerobot.fs.entity.po.CdrDetail;
+import com.telerobot.fs.global.CdrPush;
 import com.telerobot.fs.ivr.IvrEngine;
 import com.telerobot.fs.outbound.CallConfig;
 import com.telerobot.fs.robot.RobotChat;
@@ -322,6 +324,7 @@ public class CallTask implements Runnable {
 	class myESLEventListener implements IEslEventListener {
 		private final Logger log = LoggerFactory.getLogger(this.getClass());
 		private String backgroundJobUuid = "";
+		private String asrEngine = SystemConfig.getValue("empty-number-detection-asr", "funasr");
 		private myESLEventListener(String robotCallUuid){
 		}
 		public void setBackgroundJobUuid(String backgroundJobUuid) {
@@ -357,7 +360,7 @@ public class CallTask implements Runnable {
 				if (phoneInfo.getConnectedTime() > 0L) {
 					long callDuring = eventTime - phoneInfo.getConnectedTime();
 					phoneInfo.setTimeLen((int) (callDuring));
-				}else{
+				} else {
 					log.info("{} try to save emptyNumberDetectionText.", getTraceId());
 					setRecognitionText();
 					saveEmptyNumberDetection(emptyNumberDetectionText.toString());
@@ -377,18 +380,27 @@ public class CallTask implements Runnable {
 					}
 				}
 
-				if(emptyNumberDetectionCode > 0){
+				if (emptyNumberDetectionCode > 0) {
 					phoneInfo.setCallstatus(emptyNumberDetectionCode);
 				}
 
 				phoneInfo.setCallEndTime(System.currentTimeMillis());
 				phoneInfo.setHangupCause(hangupCause);
 				ScheduledScanTask.addToSQLQueue(phoneInfo);
+
+				// push cdr
+				CdrDetail cdrRecord = new CdrDetail();
+				cdrRecord.setUuid(phoneInfo.getUuid());
+				cdrRecord.setCdrType("outbound");
+				cdrRecord.setCdrBody(JSON.toJSONString(phoneInfo));
+				CdrPush.addCdrToQueue(cdrRecord);
 			} else if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
 				log.info("{} Ringing event received: {}", getTraceId(), eventName);
 				// empty-number-detection-enabled
 				if(Boolean.parseBoolean(SystemConfig.getValue("empty-number-detection-enabled", "false"))){
-					EslConnectionUtil.sendExecuteCommand("start_empty_number_detection",  "hello", uniqueID);
+					String startCmd = String.format("start_%s_asr",asrEngine);
+					log.info("{} try to start empty-number-detection, startCmd={}", getTraceId(), asrEngine);
+					EslConnectionUtil.sendExecuteCommand(startCmd,  "hello", uniqueID);
 				}
 				if(Boolean.parseBoolean(SystemConfig.getValue("start-write-recordings-on-ringing", "false"))){
                     String wavFile = getWavFilePath();
@@ -406,11 +418,12 @@ public class CallTask implements Runnable {
 				if(StringUtils.isEmpty(text)){
 					return;
 				}
-				if(!"AsrEvent".equalsIgnoreCase(eventSubClass)){
-					return;
+				if("AsrEvent".equalsIgnoreCase(eventSubClass) &&
+				   "Vad".equalsIgnoreCase(asrEventDetail)
+				){
+					emptyNumberDetectionText.append(text);
+					log.info("{} recv emptyNumberDetection result: {}.", getTraceId(), text);
 				}
-				emptyNumberDetectionText.append(text);
-				log.info("{} recv emptyNumberDetection result: {}.", getTraceId(), text);
 			}
 			else if(EventNames.CHANNEL_PARK.equalsIgnoreCase(eventName)){
 				parkSemaphore.release();
@@ -425,6 +438,7 @@ public class CallTask implements Runnable {
 				}
 			}
 			else if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
+				emptyNumberDetectionText = new StringBuilder();
 				long waitParkSemStartTime = System.currentTimeMillis();
 				// Only execute the following logic after confirming the CHANNEL_PARK event is received;
 				// otherwise, parking will result in no sound during robot playback.
@@ -439,7 +453,9 @@ public class CallTask implements Runnable {
 				);
 
 				if(Boolean.parseBoolean(SystemConfig.getValue("empty-number-detection-enabled", "false"))){
-					EslConnectionUtil.sendExecuteCommand("stop_empty_number_detection", "", uniqueID);
+					String stopCmd = String.format("start_%s_asr",asrEngine);
+                    log.info("{} try to stop empty-number-detection, stopCmd={}", getTraceId(), asrEngine);
+					EslConnectionUtil.sendExecuteCommand(stopCmd, "", uniqueID);
 				}
 
 				long now = System.currentTimeMillis();
@@ -455,6 +471,10 @@ public class CallTask implements Runnable {
 
 					startWriteRecordings(wavFile);
 
+					String groupId = "0";
+					if("acd".equalsIgnoreCase(batchEntity.getAiTransferType())){
+						groupId = batchEntity.getAiTransferData();
+					}
 					InboundDetail inboundDetail = new InboundDetail(
 							callUuid,
 							phoneInfo.getTelephone(),
@@ -462,7 +482,7 @@ public class CallTask implements Runnable {
 							System.currentTimeMillis(),
 							callUuid,
 							wavFile,
-							batchEntity.getGroupId(),
+							groupId,
 							"",
 							phoneInfo
 					);
@@ -707,6 +727,11 @@ public class CallTask implements Runnable {
 		}else if(batchEntity.getRegister() == 2) {
 			String authUsername = batchEntity.getAuthUsername();
 			String dynamicGateway = CommonUtils.getDynamicGatewayAddr(authUsername, getTraceId());
+			if(StringUtils.isEmpty(dynamicGateway)){
+				log.error("{} Failed to parse dynamic gateway address. ", getTraceId());
+				releaseThreadNum();
+				return;
+			}
 			log.info("{} successfully get dynamic gateway address : {}", getTraceId(), dynamicGateway);
 			// for dynamic gateway, we must use internal profile
 			callParameter = String.format("{%s%s}sofia/internal/%s%s@%s  &park()",

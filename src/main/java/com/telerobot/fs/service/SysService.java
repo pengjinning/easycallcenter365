@@ -3,6 +3,7 @@ package com.telerobot.fs.service;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dao.BizGroup;
+import com.telerobot.fs.entity.dao.CcExtNum;
 import com.telerobot.fs.entity.dao.ExtPowerConfig;
 import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AgentEx;
@@ -177,4 +178,11 @@ public class SysService {
 		return sysDao.getKbListByCatId(catId);
 	}
 
+	public int updateExtension(CcExtNum ccExtNum) {
+		return sysDao.updateExtension(ccExtNum);
+	}
+
+	public List<CcExtNum> selectAllExtensions() {
+		return sysDao.selectAllExtensions();
+	}
 }

@@ -1,10 +1,14 @@
 package com.telerobot.fs.wshandle.impl;
 
 import com.alibaba.fastjson.JSONObject;
+import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
 import com.telerobot.fs.entity.bo.ConferenceCommand;
+import com.telerobot.fs.entity.bo.InboundDetail;
+import com.telerobot.fs.entity.pojo.AgentStatus;
 import com.telerobot.fs.global.BizThreadPoolForEsl;
+import com.telerobot.fs.ivr.IvrEngine;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DateUtils;
 import com.telerobot.fs.utils.StringUtils;
@@ -20,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 public class CallListener implements IEslEventListener {
 	private static final Logger logger = LoggerFactory.getLogger(CallListener.class);
@@ -122,8 +127,7 @@ public class CallListener implements IEslEventListener {
 		String uniqueId = headers.get("Unique-ID");
 		String eventName = headers.get("Event-Name");
 
-		if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
-
+        if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
 			logger.info("{} recv CHANNEL_ANSWER event.  uniqueId={}", getTraceId(), uniqueId);
 			if (uniqueId.equalsIgnoreCase(customerChannel.getUuid())) {
 				customerChannel.setAnsweredTime(System.currentTimeMillis());
@@ -138,8 +142,13 @@ public class CallListener implements IEslEventListener {
 				if(customerChannel.getSendChannelStatusToWsClient()){
 					JSONObject jsonObject = new JSONObject();
 					jsonObject.put("uuid", agentChannel.getUuid());
+					jsonObject.put("uuid_customer", customerChannel.getUuid());
+					jsonObject.put("biz_field_value", agentChannel.getBizFieldValue());
 					if(customerChannel.getCallDirection().equalsIgnoreCase(CallDirection.OUTBOUND)){
 						jsonObject.put("callType", customerChannel.getCallType());
+					}
+					if(customerChannel.getInboundDetail() != null) {
+						jsonObject.put("callDetail", customerChannel.getInboundDetail());
 					}
 					logger.info("{} customerChannel is connected，call confirmed.", getTraceId());
 					callApiObject.sendReplyToAgent(
@@ -159,6 +168,11 @@ public class CallListener implements IEslEventListener {
 				if(agentChannel.getSendChannelStatusToWsClient()){
 					JSONObject jsonObject = new JSONObject();
 					jsonObject.put("uuid", agentChannel.getUuid());
+					jsonObject.put("uuid_customer", customerChannel.getUuid());
+					jsonObject.put("biz_field_value", agentChannel.getBizFieldValue());
+					if(customerChannel.getInboundDetail() != null) {
+						jsonObject.put("callDetail", customerChannel.getInboundDetail());
+					}
 					if(agentChannel.getCallDirection().equalsIgnoreCase(CallDirection.INBOUND)){
 						jsonObject.put("callType", agentChannel.getCallType());
 					}
@@ -166,6 +180,9 @@ public class CallListener implements IEslEventListener {
 						// audio call convert to video call scenario.
 						jsonObject.put("callType", agentChannel.getCallType());
 					}
+
+					AgentCc.setAgentStatus(AgentStatus.incall, callApiObject.getSessionInfo().getOpNum());
+                    ThreadUtil.sleep(10);
 					logger.info("{} agentChannel is connected，call confirmed.", getTraceId());
 					callApiObject.sendReplyToAgent(
 							new MessageResponse(RespStatus.CALLER_ANSWERED, "call connected.", jsonObject)
@@ -247,13 +264,24 @@ public class CallListener implements IEslEventListener {
 						JSONObject jsonObject = new JSONObject();
 						String hangupSipCode = headers.get("variable_sip_invite_failure_status");
 						String hangupCause = headers.get("Hangup-Cause");
+						jsonObject.put("uuid", agentChannel.getUuid());
+						jsonObject.put("uuid_customer", customerChannel.getUuid());
+						jsonObject.put("biz_field_value", agentChannel.getBizFieldValue());
 						jsonObject.put("My-Hangup-Cause", hangupCause + ":" + hangupSipCode);
+						if(customerChannel.getInboundDetail() != null) {
+							jsonObject.put("callDetail", customerChannel.getInboundDetail());
+						}
+
 						callApiObject.sendReplyToAgent(
 								new MessageResponse(RespStatus.CALLER_HANGUP, "extension is hangup.", jsonObject)
 						);
+
+						if(agentChannel.getAnsweredTime() > 0L) {
+							AgentCc.setAgentStatus(AgentStatus.processing, callApiObject.getSessionInfo().getOpNum());
+						}
 					}
 
-					if(customerChannel.testFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED)){
+					if(customerChannel.testFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED)) {
 						logger.info("{} satisfaction survey is required for this session , we wait for this process.", getTraceId());
 						return;
 					}
@@ -286,6 +314,8 @@ public class CallListener implements IEslEventListener {
 					agentChannel.getRecvMediaHook().onRecvMedia(headers, getTraceId());
 					agentChannel.setRecvMediaHook(null);
 				}
+
+                checkInboundCustomerCallSession();
 			}
 
 		} else
@@ -311,13 +341,31 @@ public class CallListener implements IEslEventListener {
 					customerChannel.getParkHook().onPark(headers, getTraceId());
 					customerChannel.setParkHook(null);
                 }
+
+				if(customerChannel.testFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED)){
+					logger.info("{} satisfaction survey is required for this session , we wait for this process.", getTraceId());
+					boolean channelHold = customerChannel.testFlag(ChannelFlag.HOLD_CALL);
+					InboundDetail inboundDetail = customerChannel.getInboundDetail();
+					if(inboundDetail != null) {
+						String satisfSurveyIvrId = inboundDetail.getSatisfSurveyIvrId();
+						if (inboundDetail.getManualAnsweredTime() > 0L && !channelHold) {
+							if (!StringUtils.isNullOrEmpty(satisfSurveyIvrId)) {
+								logger.info("{} Try to start ivr process for satisfaction survey. ivrId={}.",
+										inboundDetail.getUuid(), satisfSurveyIvrId);
+								AppContextProvider.getBean(IvrEngine.class).startIvrSession(inboundDetail, satisfSurveyIvrId);
+							}
+						}
+					}
+				}
 			}else if (uniqueId.equalsIgnoreCase(agentChannel.getUuid())) {
 				if(agentChannel.getBridgeCallAfterPark()){
 					agentChannel.setBridgeCallAfterPark(false);
 					customerChannel.setChannelState(ChanneState.PARKED);
 					agentChannel.setChannelState(ChanneState.PARKED);
-					logger.info("{} onPark event occurred, try to bridge call ... ", getTraceId());
-					callApiObject.bridgeCall(agentChannel, customerChannel);
+					if(checkInboundCustomerCallSession()) {
+						logger.info("{} onPark event occurred, try to bridge call ... ", getTraceId());
+						callApiObject.bridgeCall(agentChannel, customerChannel);
+					}
 				}
 
 				if(agentChannel.getParkHook() != null) {
@@ -326,6 +374,17 @@ public class CallListener implements IEslEventListener {
 				}
 			}
 		}
+	}
+
+	private boolean checkInboundCustomerCallSession() {
+		if(customerChannel.getInboundDetail() != null){
+			if(customerChannel.getInboundDetail().getHangup()){
+				logger.warn("{} The customer has hung-up. The transfer request is abandoned.", customerChannel.getUuid());
+				EslConnectionUtil.sendExecuteCommand("hangup", "Customer-Hangup", agentChannel.getUuid());
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Override

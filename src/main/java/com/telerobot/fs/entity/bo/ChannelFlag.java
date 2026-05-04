@@ -30,6 +30,10 @@ public enum ChannelFlag {
      */
     SATISFACTION_SURVEY_REQUIRED("SATISFACTION_SURVEY_REQUIRED", 5),
 
+    /**
+     * on consultation state
+     */
+    ON_CONSULTATION("ON_CONSULTATION", 6),
 
     /**
      *  当前通话已收到振铃媒体

@@ -62,6 +62,10 @@ public class InboundDetailService {
             inboundConfig.setId((Integer)map.get("id"));
             inboundConfig.setLlmAccountId((Integer)map.get("llm_account_id"));
             inboundConfig.setVoiceCode(map.get("voice_code").toString());
+            inboundConfig.setTtsModels(map.get("tts_models").toString());
+            inboundConfig.setAsrModels(map.get("asr_models").toString());
+            inboundConfig.setTtsLanguageCode(map.get("tts_language_code").toString());
+            inboundConfig.setAsrLanguageCode(map.get("asr_language_code").toString());
             inboundConfig.setVoiceSource(map.get("voice_source").toString());
             inboundConfig.setAsrProvider(map.get("asr_provider").toString());
             inboundConfig.setServiceType(map.get("service_type").toString());

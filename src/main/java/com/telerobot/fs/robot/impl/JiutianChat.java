@@ -40,6 +40,7 @@ public class JiutianChat extends AbstractChatRobot {
             closeTts();
 
             aiphoneRes.setBody(openingRemarks);
+            return aiphoneRes;
         }else{
             if(!StringUtils.isEmpty(question)) {
                 addDialogue(ROLE_USER, question);
@@ -54,6 +55,7 @@ public class JiutianChat extends AbstractChatRobot {
                 closeTts();
 
                 aiphoneRes.setBody(noVoiceTips);
+                return aiphoneRes;
             }
         }
 

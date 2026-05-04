@@ -7,6 +7,10 @@ public class InboundConfig {
     private int id;
     private int llmAccountId;
     private String callee;
+    private String asrLanguageCode;
+    private String ttsLanguageCode;
+    private String asrModels;
+    private String ttsModels;
     private String voiceCode;
     private String voiceSource;
     private String asrProvider;

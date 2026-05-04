@@ -66,4 +66,5 @@ public enum ChanneState {
     public int getIndex() {
         return index;
     }
+
 }

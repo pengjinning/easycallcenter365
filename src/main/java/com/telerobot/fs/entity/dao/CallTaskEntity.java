@@ -41,6 +41,10 @@ public class CallTaskEntity {
 	 */
 	private int playTimes;
 
+	private String asrLanguageCode;
+	private String ttsLanguageCode;
+	private String asrModels;
+	private String ttsModels;
 	private String voiceCode;
 	private String voiceSource;
 
@@ -258,6 +262,38 @@ public class CallTaskEntity {
 
 	public String getVoiceSource() {
 		return voiceSource;
+	}
+
+	public String getTtsModels() {
+		return ttsModels;
+	}
+
+	public void setTtsModels(String ttsModels) {
+		this.ttsModels = ttsModels;
+	}
+
+	public String getAsrLanguageCode() {
+		return asrLanguageCode;
+	}
+
+	public void setAsrLanguageCode(String asrLanguageCode) {
+		this.asrLanguageCode = asrLanguageCode;
+	}
+
+	public String getTtsLanguageCode() {
+		return ttsLanguageCode;
+	}
+
+	public void setTtsLanguageCode(String ttsLanguageCode) {
+		this.ttsLanguageCode = ttsLanguageCode;
+	}
+
+	public String getAsrModels() {
+		return asrModels;
+	}
+
+	public void setAsrModels(String asrModels) {
+		this.asrModels = asrModels;
 	}
 
 	public void setVoiceSource(String voiceSource) {

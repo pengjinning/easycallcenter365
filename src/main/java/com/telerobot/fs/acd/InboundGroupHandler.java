@@ -2,11 +2,14 @@ package com.telerobot.fs.acd;
 
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.AppContextProvider;
+import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.pojo.AgentStatus;
 import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.utils.CommonUtils;
+import com.telerobot.fs.utils.ThreadPoolCreator;
 import com.telerobot.fs.utils.ThreadUtil;
 import com.telerobot.fs.wshandle.*;
+import com.telerobot.fs.wshandle.impl.AgentCc;
 import com.telerobot.fs.wshandle.impl.InboundMonitorDataPull;
 import lombok.SneakyThrows;
 import org.slf4j.Logger;
@@ -15,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Call queue handler class — a handler object is created for each group
@@ -25,7 +29,9 @@ public class InboundGroupHandler {
 
     private final static Logger log = LoggerFactory.getLogger(InboundGroupHandler.class);
 
-    /** 存放当前业务组的外呼电话 **/
+    /**
+	 * store call sessions for current groupId
+	 ***/
 	private ArrayBlockingQueue<CallHandler> inboundCallQueue = new ArrayBlockingQueue<>(600, false);
 
 	private Semaphore semaphore = new Semaphore(0);
@@ -33,6 +39,16 @@ public class InboundGroupHandler {
 	public int getQueueSize(){
         return inboundCallQueue.size();
     }
+
+	private static int inboundGroupHandlerThreadPoolSize = Integer.parseInt(
+			SystemConfig.getValue("inbound-group-handler-thread-pool-size", "20")
+	);
+	private  static ThreadPoolExecutor assignCallThreadPool = ThreadPoolCreator.create(
+			inboundGroupHandlerThreadPoolSize,
+			"inbound-call-group-assign-thread",
+			365*24,
+			inboundGroupHandlerThreadPoolSize * 2
+	);
 
 	/**
 	 * Calculate and retrieve the number of people ahead of the current customer in the queue
@@ -50,24 +66,25 @@ public class InboundGroupHandler {
 		return count;
 	}
 
-    /** 业务组信息，这里使用学校的固话作为groupId  **/
+    /**
+	 * business groupId
+	 ***/
 	private String groupId = null;
 
-	/** 业务组信息 **/
 	public String getGroupId() {
 		return groupId;
 	}
 
-	/** 根据groupId创建呼出电话处理对象  **/
+
 	public InboundGroupHandler(String _groupId) {
-		this.groupId = _groupId;
+		this.groupId = _groupId.trim();
         activeCallHandler();
 	}
 
 	private boolean disposed = false;
 
     /**
-     * 添加一个话务请求到话务队列中
+     * add a call session to queue
      * @param callDetailInfo
      * @return
      */
@@ -79,7 +96,7 @@ public class InboundGroupHandler {
 			if(!inboundCallQueue.contains(callDetailInfo)) {
 				this.inboundCallQueue.put(callDetailInfo);
 			}else{
-				String errorTips = "严重错误，添加了重复的排队对象到队列中, addCallToQueue(CallHandler)";
+				String errorTips = "error， repeated call session, skip it. addCallToQueue(CallHandler)";
 				log.error("{} {}",  callDetailInfo.getTraceId(), errorTips);
 			}
             semaphore.release();
@@ -91,13 +108,13 @@ public class InboundGroupHandler {
     }
 
 	/**
-	 * 添加一个话务请求到话务队列中
+	 *  add a call session to a queue of specific groupId
 	 * @param callDetailInfo
 	 * @return
 	 */
 	public static boolean addCallToQueue(CallHandler callDetailInfo, String skillGroupId) {
 		InboundGroupHandler groupHandler = InboundGroupHandlerList.getInstance().
-				getCallHandlerBySkillGroupId(skillGroupId);
+				getCallHandlerBySkillGroupId(skillGroupId.trim());
 		assert null != groupHandler;
 		return groupHandler.addCallToQueue(callDetailInfo);
 	}
@@ -105,7 +122,7 @@ public class InboundGroupHandler {
 
 
 	private void assignCall() {
-		log.info("assignCall thread started :" + this.groupId.toString());
+		log.info("assignCall thread started groupId={}.", this.groupId);
 		while (!disposed) {
 			try {
                 semaphore.acquire();
@@ -133,15 +150,17 @@ public class InboundGroupHandler {
 							if (engine != null) {
 								SessionEntity session = engine.getSessionInfo();
 								if (session != null && session.tryLock()) {
-									log.info("{} An free agent is successfully obtained. opnum={}, extnum={}, lastHangupTime={}",
-											call.getTraceId(), agent.getOpNum(), agent.getExtNum(), agent.getLastHangupTime()
+									log.info("{} An free agent is successfully obtained. opnum={}, extnum={}, sessionId={}, lastHangupTime={}, agent groupId={}, groupId of call session={}.",
+											call.getTraceId(), agent.getOpNum(), agent.getExtNum(), agent.getSessionId(),
+											agent.getLastHangupTime(), agent.getGroupId(), call.getInboundDetail().getGroupId()
 									);
-									log.info("{} Set the busy lock status of an agent. uerId={}, extNum={}",
+									log.info("{} Set the busy lock status of an agent. uerId={}, extNum={}, sessionId={}.",
 											call.getTraceId(),
 											agent.getOpNum(),
-											agent.getExtNum()
+											agent.getExtNum(),
+											agent.getSessionId()
 									);
-									AppContextProvider.getBean(SysService.class).setAgentStatusWithBusyLock(agent.getOpNum(), AgentStatus.incall.getIndex());
+									AgentCc.setAgentStatus(AgentStatus.lockStatus, agent.getOpNum());
 									agentFound = agent;
 									break;
 								}
@@ -191,22 +210,23 @@ public class InboundGroupHandler {
 	}
 
     private void activeCallHandler() {
-	    // 启动线程；
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                assignCall();
-            }
-        }, "distributeCall").start();
+		assignCallThreadPool.execute(
+				new Runnable() {
+					@Override
+					public void run() {
+						assignCall();
+					}
+				}
+		);
 
-		// 启动线程；
-		new Thread(new Runnable() {
-			@SneakyThrows
-			@Override
-			public void run() {
-				sendAcdQueueInfoToGroup();
-			}
-		}, "sendAcdQueueToGroup").start();
+		assignCallThreadPool.execute(
+				new Runnable() {
+					@Override
+					public void run() {
+						sendAcdQueueInfoToGroup();
+					}
+				}
+		);
     }
 
     private volatile boolean sendQueueEmptyInfo = true;

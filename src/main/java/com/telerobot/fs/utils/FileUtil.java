@@ -1,11 +1,15 @@
 package com.telerobot.fs.utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.*;
 
 /**
  * 文件操作工具类
  */
 public class FileUtil {
+	private static final Logger logger = LoggerFactory.getLogger(FileUtil.class);
 	public static boolean writeToLocal(String path, byte[] data) throws IOException {
 		File file = new File(path);
 		if (!file.exists()) {
@@ -54,14 +58,16 @@ public class FileUtil {
 		return out.toByteArray();
 	}
 	
-	public static void WriteStringToFile(String filePath, String content) {  
+	public static boolean WriteStringToFile(String filePath, String content) {
         try {  
             PrintWriter pw = new PrintWriter(new FileWriter(filePath));  
             pw.println(content);    
-            pw.close();  
-        } catch (IOException e) {  
-            e.printStackTrace();  
-        }  
+            pw.close();
+            return true;
+        } catch (Throwable e) {
+        	logger.error("Error! Failed to write file '{}' ! {} {}", filePath, e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
+        }
+        return false;
     }  
 	
 	  public static void copyFile(File fromFile,File toFile) throws IOException{

@@ -1,6 +1,7 @@
 package com.telerobot.fs.mybatis.dao;
 
 import com.telerobot.fs.entity.dao.BizGroup;
+import com.telerobot.fs.entity.dao.CcExtNum;
 import com.telerobot.fs.entity.dao.ExtPowerConfig;
 import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AgentEx;
@@ -69,4 +70,8 @@ public interface SysDao {
 
 	List<LlmKb> getKbListByCatId(int catId);
 
+
+	int updateExtension(CcExtNum ccExtNum);
+
+	List<CcExtNum> selectAllExtensions();
 }

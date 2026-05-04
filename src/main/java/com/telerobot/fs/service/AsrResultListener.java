@@ -163,6 +163,7 @@ public class AsrResultListener implements ApplicationListener<ApplicationReadyEv
         String uuid = callMonitorInfo.getUuid();
         String asrProvider = SystemConfig.getValue("fs_call_asr_engine", "funasr");
         if(asrProvider.equalsIgnoreCase(AsrProvider.ALIYUN)) {
+            logger.info("{} Attempt to initiate the call speech transcription process.", callMonitorInfo.getUuidAgent());
             AlibabaTokenEntity token = AliyunTTSWebApi.getToken();
             if (token != null) {
                 logger.info("{} set FreeSWITCH channel variables, aliyun_tts_token={}, aliyun_tts_app_key={} ",

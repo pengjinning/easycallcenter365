@@ -55,6 +55,7 @@ public class JiutianWorkflow extends AbstractChatRobot {
                 closeTts();
 
                 aiphoneRes.setBody(noVoiceTips);
+                return aiphoneRes;
             }
         }
 

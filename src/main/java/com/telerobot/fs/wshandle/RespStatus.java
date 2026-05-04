@@ -7,6 +7,11 @@ public class RespStatus {
     public static final int REQUEST_PARAM_ERROR = 400;
 
     /**
+     *  UNAUTHORIZED
+     */
+    public static final int UNAUTHORIZED = 401;
+
+    /**
      * 客户端无权请求，权限不足;
      */
     public static final int REQUEST_FORBIDDEN = 403;
@@ -198,6 +203,12 @@ public class RespStatus {
      *  Notify the agent that the call consultation has stopped.
      */
     public static final int INNER_CONSULTATION_STOP =  633;
+
+
+    /**
+     * extension cannot connected
+     */
+    public static final int EXTENSION_CANNOT_CONNECTED =  634;
 
     /**
      * 多人电话会议，重复的被叫;

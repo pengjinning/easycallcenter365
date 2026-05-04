@@ -33,7 +33,7 @@ public class InboundMonitorDataPull extends MsgHandlerBase {
             wsClientsMap =  new ConcurrentHashMap<>(20);
 
     public static void add(CallMonitorInfo callMonitorInfo){
-        if(null == callMonitorInfo || callMonitorInfo.getGroupId().equals("0")) {
+        if(null == callMonitorInfo) {
             return;
         }
         callMonitorInfo.setHangupTimeStamp(0L);

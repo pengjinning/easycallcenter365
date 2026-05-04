@@ -27,34 +27,46 @@ public class CdrPush implements ApplicationListener<ApplicationReadyEvent> {
     private static Logger logger =  LoggerFactory.getLogger(CdrPush.class);
     private static Semaphore semaphore = new Semaphore(9999);
     private static ArrayBlockingQueue<CdrDetail> cdrQueue = new ArrayBlockingQueue<>(9999);
-
+    private static boolean checkPostCdrEnabled(){
+        return Boolean.parseBoolean(SystemConfig.getValue("post_cdr_enabled", "true"));
+    }
 
     public static boolean addCdrToQueue(CdrDetail cdr){
+         if(!checkPostCdrEnabled()){
+             logger.info("{} cdr push is not enabled.", cdr.getUuid());
+             return false;
+         }
          if(cdrQueue.add(cdr)){
              semaphore.release(1);
              return true;
+         }else{
+             logger.error("{} cdr-push queue is full. Cant not process new requests. cdr json={}",
+                     cdr.getUuid(), JSON.toJSONString(cdr)
+             );
          }
          return  false;
     }
 
-    private void postCdr(CdrDetail cdr){
+    private boolean postCdr(CdrDetail cdr){
         try {
             String url = SystemConfig.getValue("post_cdr_url");
             if (StringUtils.isNullOrEmpty(url)) {
-                logger.error("没有配置业务系统接收话单的参数 post_cdr_url.");
-                return;
+                logger.error("post_cdr_url  has not been configured yet.");
+                return false;
             }
             String cdrData = JSON.toJSONString(cdr);
             String response = OkHttpClientUtil.postCdr(url, cdrData);
             logger.info("{} postCdr: {}， request url {} , response: {}", cdr.getUuid(),  cdrData, url, response);
             if ("success".equalsIgnoreCase(response)) {
                 logger.info("{} post cdr succeed.", cdr.getUuid());
+                return true;
             } else {
                 logger.error("{} post cdr failed: cdr data={}", cdr.getUuid(), cdrData);
             }
         }catch (Throwable e){
-            logger.error("postCdr error: {} {}", e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
+            logger.error("postCdr failed: {} {}", e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
         }
+        return false;
     }
 
     @Override
@@ -63,19 +75,18 @@ public class CdrPush implements ApplicationListener<ApplicationReadyEvent> {
                @SneakyThrows
                @Override
                public void run() {
-                   try {
                        logger.info("CdrPush thread is now running...");
                        while (true) {
                            semaphore.acquire();
                            CdrDetail cdrDetail = cdrQueue.poll();
                            if (null != cdrDetail) {
-                               postCdr(cdrDetail);
+                               if(!postCdr(cdrDetail)){
+                                   addCdrToQueue(cdrDetail);
+                                   Thread.sleep(100);
+                               }
                            }
                            Thread.sleep(10);
                        }
-                   }catch (Throwable e){
-                       logger.error("postCdr main thread error: {} {}", e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
-                   }
                }
            }).start();
     }

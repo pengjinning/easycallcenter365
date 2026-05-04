@@ -1,11 +1,15 @@
 package com.telerobot.fs.utils;
 
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.util.FileCopyUtils;
@@ -16,9 +20,10 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 
 public class FileUtils {
-
+	private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
 	/**
 	 * 合并返回的录音文件为1个
+	 *
 	 * @param ttsFile
 	 * @param files
 	 * @return
@@ -37,10 +42,10 @@ public class FileUtils {
 				org.apache.commons.io.FileUtils.copyFile(firstFile, new File(ttsFile));
 			}
 		} catch (IOException e) {
-		   return false;
+			return false;
 		}
 		File out = new File(ttsFile);
-		if(!out.exists()){
+		if (!out.exists()) {
 			out.mkdirs();
 		}
 		try {
@@ -50,12 +55,12 @@ public class FileUtils {
 				ArrayList<AudioInputStream> aisList = new ArrayList<AudioInputStream>();
 				long frameLenght = 0L;
 				for (String file : fileArrs) {
-					if(StringUtils.isNotBlank(file)){
+					if (StringUtils.isNotBlank(file)) {
 						File f = new File(file);
 						int waitTtsTime = 0;
 						while (waitTtsTime < 10 && !f.exists()) {
 							ThreadUtil.sleep(100);
-							waitTtsTime ++;
+							waitTtsTime++;
 						}
 						AudioInputStream ais = AudioSystem.getAudioInputStream(f);
 						aisList.add(ais);
@@ -78,29 +83,29 @@ public class FileUtils {
 
 	public static String ReadFile(String filePath, String encoding) {
 		String content = "";
-		if(!new File(filePath).exists()) return "";
-		Resource res1 = new FileSystemResource(filePath); 
-		EncodedResource encRes = new EncodedResource(res1,encoding);
+		if (!new File(filePath).exists()) return "";
+		Resource res1 = new FileSystemResource(filePath);
+		EncodedResource encRes = new EncodedResource(res1, encoding);
 		try {
 			content = FileCopyUtils.copyToString(encRes.getReader());
 		} catch (Exception e) {
-			System.out.println("error reading file: " + filePath  + e.toString());
+			System.out.println("error reading file: " + filePath + e.toString());
 		}
 		return content;
 	}
-	
-	public static boolean WriteFile(String filePath, String content)
-	{
-		try
-		{
-		FileWriter fw = new FileWriter(filePath);
-		PrintWriter pw = new PrintWriter(fw);
-		pw.println(content);
-		pw.flush();
-		pw.close();
-		}
-		catch(Throwable ex)
-		{
+
+	public static boolean WriteFile(String filePath, String content) {
+		try {
+			OutputStreamWriter fw = new OutputStreamWriter(
+					new FileOutputStream(filePath),
+					StandardCharsets.UTF_8
+			);
+			PrintWriter pw = new PrintWriter(fw);
+			pw.println(content);
+			pw.flush();
+			pw.close();
+		} catch (Throwable ex) {
+            logger.error("Failed to write file {}, {}", filePath, CommonUtils.getStackTraceString(ex.getStackTrace()));
 			return false;
 		}
 		return true;

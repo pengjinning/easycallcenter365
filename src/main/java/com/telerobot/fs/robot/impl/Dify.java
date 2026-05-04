@@ -58,6 +58,7 @@ public class Dify extends AbstractChatRobot {
                 closeTts();
 
                 aiphoneRes.setBody(noVoiceTips);
+                return aiphoneRes;
             }
         }
 
@@ -71,7 +72,7 @@ public class Dify extends AbstractChatRobot {
                 }
             } catch (Throwable throwable) {
                 aiphoneRes.setStatus_code(0);
-                logger.error("{} talkWith Dify error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+                logger.error("{} talkWith Dify error: {} \n {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
             }
         }
 
@@ -97,7 +98,7 @@ public class Dify extends AbstractChatRobot {
             requestBody.put("conversation_id", chat_id);
             logger.info("{} set Dify chat_id = {}", uuid, chat_id);
         }
-        requestBody.put("user", "abc-123");
+        requestBody.put("user", uuid);
 
         RequestBody body = RequestBody.create(
                 MediaType.parse("application/json"),

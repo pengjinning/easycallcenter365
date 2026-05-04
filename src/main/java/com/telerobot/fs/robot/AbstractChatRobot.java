@@ -3,6 +3,7 @@ package com.telerobot.fs.robot;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.SystemConfig;
+import com.telerobot.fs.config.ThreadLocalTraceId;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
@@ -88,6 +89,9 @@ public abstract class AbstractChatRobot implements IChatRobot {
             "：", ":"
     };
     protected boolean checkPauseFlag(String input){
+        if(StringUtils.isEmpty(input)){
+            return false;
+        }
         String lastChar = input.substring(input.length() - 1);
         for (String flag : pauseFlags) {
             if(flag.equalsIgnoreCase(lastChar)){
@@ -133,6 +137,12 @@ public abstract class AbstractChatRobot implements IChatRobot {
 
     @Override
     public void sendTtsRequest(String textParam){
+        if(StringUtils.isEmpty(getAccount().voiceSource)){
+            logger.error("{} tts voiceSource is empty, can not process tts request. ",
+                       ThreadLocalTraceId.getInstance().getTraceId()
+            );
+            return;
+        }
         if(StringUtils.isEmpty(textParam)){
             return;
         }

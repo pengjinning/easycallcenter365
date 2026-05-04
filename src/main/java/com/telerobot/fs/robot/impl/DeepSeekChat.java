@@ -87,6 +87,7 @@ public class DeepSeekChat extends AbstractChatRobot {
                     closeTts();
 
                     aiphoneRes.setBody(noVoiceTips);
+					return aiphoneRes;
                 }
             }
 
@@ -99,7 +100,7 @@ public class DeepSeekChat extends AbstractChatRobot {
                 }
             } catch (Throwable throwable) {
                 aiphoneRes.setStatus_code(0);
-                logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+                logger.error("{} talkWithAiAgent error: {} \n {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
             }
             return aiphoneRes;
         }
@@ -184,13 +185,6 @@ public class DeepSeekChat extends AbstractChatRobot {
                         String speechContent = message.getString("content");
                         logger.info("{} speechContent: {}", getTraceId(), speechContent);
 
-                        if (!recvData) {
-                            recvData = true;
-                            long costTime = (System.currentTimeMillis() - startTime);
-                            logger.info("http request cost time : {} ms.", costTime);
-                            aiphoneRes.setCostTime(costTime);
-                        }
-
                         if (!StringUtils.isEmpty(speechContent)) {
 
                             if (speechContent.contains(LlmToolRequest.TRANSFER_TO_AGENT)) {
@@ -210,8 +204,15 @@ public class DeepSeekChat extends AbstractChatRobot {
                                 ttsTextCache.add(speechContent);
                                 ttsTextLength += speechContent.length();
                                 // 积攒足够的字数之后，才发送给tts，避免播放异常;
-                                if (ttsTextLength >= 10 && checkPauseFlag(speechContent)) {
+                                if (ttsTextLength >= 5 && checkPauseFlag(speechContent)) {
                                     sendToTts();
+
+                                    if (!recvData) {
+                                        recvData = true;
+                                        long costTime = (System.currentTimeMillis() - startTime);
+                                        logger.info("http request cost time : {} ms.", costTime);
+                                        aiphoneRes.setCostTime(costTime);
+                                    }
                                 }
                             }
                             responseBuilder.append(speechContent);

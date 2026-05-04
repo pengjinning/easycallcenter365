@@ -1,0 +1,18 @@
+新增firewalld的安全防护
+
+需要在宿主机上安装firewalld服务
+
+1. firewalld-template.xml 模板文件放入到目 /home/freeswitch/etc/freeswitch/autoload_configs
+
+2. 修改默认的 autoload_configs/acl.conf.xml文件，增加文件包含： 
+   <X-PRE-PROCESS cmd="include" data="inbound_acl.xml"/>
+   <X-PRE-PROCESS cmd="include" data="register_acl.xml"/>
+
+3. 所有的 profile 配置文件 
+    internal.xml 引用设置：
+    <param name="apply-inbound-acl" value="inbound_allow_list"/>
+	<param name="apply-register-acl" value="register_allow_list"/> 
+	
+	external.xml 引用设置：
+    <param name="apply-inbound-acl" value="inbound_allow_list"/>
+	

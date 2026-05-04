@@ -3,6 +3,8 @@ package com.telerobot.fs.acd;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.telerobot.fs.config.AppContextProvider;
+import com.telerobot.fs.config.OriginateSessionErrorCode;
+import com.telerobot.fs.config.SipSessionStatusCode;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
@@ -16,6 +18,7 @@ import com.telerobot.fs.service.AsrResultListener;
 import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.utils.*;
 import com.telerobot.fs.wshandle.*;
+import com.telerobot.fs.wshandle.impl.AgentCc;
 import com.telerobot.fs.wshandle.impl.CallApi;
 import com.telerobot.fs.wshandle.impl.InboundMonitorDataPull;
 import link.thingscloud.freeswitch.esl.EslConnectionPool;
@@ -77,17 +80,12 @@ public class CallHandler {
 		return inboundDetail;
 	}
 
-	/**
-	 * IVR ID for satisfaction survey
-	 */
-	private volatile String satisfSurveyIvrId = "";
-
 	public String getSatisfSurveyIvrId() {
-		return satisfSurveyIvrId;
+		return this.inboundDetail.getSatisfSurveyIvrId();
 	}
 
 	public void setSatisfSurveyIvrId(String satisfSurveyIvrId) {
-		this.satisfSurveyIvrId = satisfSurveyIvrId;
+		this.inboundDetail.setSatisfSurveyIvrId(satisfSurveyIvrId);
 	}
 
 	private static ThreadPoolExecutor transferCallThreadPool;
@@ -106,7 +104,7 @@ public class CallHandler {
 	 *  转接座席超时时间
 	 */
 	private static int transferAgentTimeOut = Integer.parseInt(
-			SystemConfig.getValue("inbound-transfer-agent-timeout")
+			SystemConfig.getValue("inbound-transfer-agent-timeout", "30")
 	);
 
 	private volatile SessionEntity agentSessionEntity = null;
@@ -285,12 +283,12 @@ public class CallHandler {
 			CallHandler task = entry.getValue();
 			long currentTime = System.currentTimeMillis();
 			long timePassed = currentTime - task.inboundDetail.getTransferTime() + 200;
-			boolean transferExpired = (task.inboundDetail.getTransferTime() > 0L) && (timePassed > transferAgentTimeOut * 1000);
+			boolean transferTimeout = (task.inboundDetail.getTransferTime() > 0L) && (timePassed > transferAgentTimeOut * 1000);
 			boolean transferredSucceed = task.inboundDetail.getTransferredSucceed();
 			boolean hangup = task.inboundDetail.getHangup();
 			// 通话未挂机且未被应答
 			boolean notAnsweredAndNotHangup = !transferredSucceed && !hangup;
-			boolean callExtensionNoAnswer = task.transferring && transferExpired && notAnsweredAndNotHangup;
+			boolean callExtensionNoAnswer = task.transferring && transferTimeout && notAnsweredAndNotHangup;
 			boolean transferExtensionFailed =  task.transferFailed;
 			if(transferExtensionFailed || callExtensionNoAnswer){
 				log.warn("{} Put the transfer-failed call back to the queue:{}", task.uuid, JSON.toJSONString(task.inboundDetail));
@@ -358,7 +356,6 @@ public class CallHandler {
 		if(queueNum == 0) {
 			return "";
 		}
-		queueNum = queueNum - 1;
 		StringBuilder stringBuilder = new StringBuilder();
 		stringBuilder.append("$${sounds_dir}/ivr/queue-wait-num-tips-start.wav");
 		stringBuilder.append(";");
@@ -440,14 +437,19 @@ public class CallHandler {
 				if(null != engine){
                     //发送弹屏消息
 					engine.sendReplyToAgent(new MessageResponse(RespStatus.NEW_INBOUND_CALL, "new inbound call", inboundDetail));
-
-					JSONObject jsonObject = new JSONObject();
-					jsonObject.put("status", AgentStatus.lockStatus.getIndex());
-					jsonObject.put("text", AgentStatus.lockStatus.getText());
-					// 座席置忙
-					engine.sendReplyToAgent(new MessageResponse(RespStatus.STATUS_CHANGED, "status: busy", jsonObject));
                     transferring = true;
 					playOpNumOnTransferring();
+
+					if(inboundDetail.getHangup()){
+						log.warn("{} The customer has hung-up. The transfer request is abandoned.", uuid);
+						MessageHandlerEngineList.sendReplyToAgent(
+								agent.getOpNum(),
+								new  MessageResponse(RespStatus.CALLER_HANGUP, "customer has benn hangup.")
+						);
+						ThreadUtil.sleep(50);
+						resetAgentStatus();
+						return;
+					}
 
 					CallApi callApi = ((CallApi)engine.getMessageHandleByName("call"));
 					if(null != callApi) {
@@ -463,7 +465,9 @@ public class CallHandler {
 						customerChannel.setPhoneNumber(inboundDetail.getCaller());
 						customerChannel.setChannelState(ChanneState.BRIDGED);
 						customerChannel.setFlag(ChannelFlag.HOLD_CALL);
-						if(!StringUtils.isNullOrEmpty(satisfSurveyIvrId)){
+						customerChannel.setInboundDetail(inboundDetail);
+						inboundDetail.setSwitchChannel(customerChannel);
+						if(!StringUtils.isNullOrEmpty(inboundDetail.getSatisfSurveyIvrId())){
 							customerChannel.setFlag(ChannelFlag.SATISFACTION_SURVEY_REQUIRED);
 							EslConnectionUtil.sendExecuteCommand(
 									"set",
@@ -488,6 +492,18 @@ public class CallHandler {
 				}
 			}
 		});
+	}
+
+	private void resetAgentStatus(){
+		if(inboundDetail.getManualAnsweredTime() == 0L && agentSessionEntity != null){
+			// extension not answered, we must reset agent status.
+			AppContextProvider.getBean(SysService.class).resetAgentBusyLockTimeEx(
+					agentSessionEntity.getOpNum(),
+					System.currentTimeMillis() - 5000
+			);
+			AgentCc.setAgentStatus(AgentStatus.free, agentSessionEntity.getOpNum());
+
+		}
 	}
 
 	private void playOpNumOnTransferring(){
@@ -529,6 +545,7 @@ public class CallHandler {
 			);
 		}
 	}
+
 
 	/**
 	 * 通话事件监听器 (用户应答、挂机、按键等事件时触发)
@@ -583,9 +600,18 @@ public class CallHandler {
 			}
 			else if (EventNames.CHANNEL_HANGUP.equalsIgnoreCase(eventName)) {
 				if (!uniqueID.contains(BLEGSTR)) {
+
+					if(inboundDetail.getManualAnsweredTime() == 0L) {
+						log.info("{} Customer-Hangup event received, now we hangup extension. ", uuid);
+						EslConnectionUtil.sendExecuteCommand("hangup", "Customer-Hangup", bleg );
+					}
+
 					if(agentSessionEntity != null) {
 						saveAgentHangupTime(agentSessionEntity.getExtNum());
 					}
+
+					resetAgentStatus();
+
 					log.info("{} save cdr,  hangupCause: {}", uuid, hangupCause);
 
 					String transferToConferenceTime = headers.get("variable_transfer_to_conference_time");
@@ -630,52 +656,33 @@ public class CallHandler {
 					cdrDetail.setCdrBody(JSON.toJSONString(inboundDetail));
 					CdrPush.addCdrToQueue(cdrDetail);
 				}else {
+					boolean answered = inboundDetail.getManualAnsweredTime() > 0L;
+					if (!answered) {
+						log.warn("{} The extension not answered the  call session. Extension {} is abnormal. Please pay attention to it!",
+								uuid, agentSessionEntity.getExtNum()
+						);
+
+						String sipCode = headers.get("variable_sip_invite_failure_status");
+						int sipStatus = StringUtils.isNullOrEmpty(sipCode) ? 0 : Integer.parseInt(sipCode);
+						if(sipStatus != SipSessionStatusCode.USER_BUSY){
+							reportExtensionStatusToWsClient();
+						}
+					}
+
 					String extnum = headers.get("variable_extnum");
 					saveAgentHangupTime(extnum);
 					log.info("{} extension is hangup, hangupCause: {}", uuid, hangupCause);
-					boolean answered = inboundDetail.getAnsweredTime() > 0L;
-					if (!answered) {
-						log.error("{} The extension failed to answer the call. Extension {} is abnormal. Please pay attention to it!", uuid, extnum);
-					}
-
-					if (inboundDetail.getManualAnsweredTime() > 0L) {
-						if (!StringUtils.isNullOrEmpty(satisfSurveyIvrId)) {
-							try {
-								callerParkSemaphore.tryAcquire(2100L, TimeUnit.MILLISECONDS);
-							} catch (Throwable e) {
-							}
-							log.info("{} Try to start ivr process for satisfaction survey. ivrId={}.", inboundDetail.getUuid(), satisfSurveyIvrId);
-							AppContextProvider.getBean(IvrEngine.class).startIvrSession(inboundDetail, satisfSurveyIvrId);
-						}
-					}
+					resetAgentStatus();
 				}
 			} else if (EventNames.CHANNEL_PROGRESS_MEDIA.equalsIgnoreCase(eventName)) {
 				log.info("{} recv ringing event {}", uuid, eventName);
 			} else if (EventNames.CHANNEL_ANSWER.equalsIgnoreCase(eventName)) {
 				if (uniqueID.contains(BLEGSTR)) {
 					// 桥接通话
-					log.info("{} the extension {} has been connected, try to bridge session. {}",
+					log.info("{} the extension {} has been connected.",
 							uuid,
-							headers.get("variable_extnum"),
-							inboundDetail.getCaller()
+							agentSessionEntity.getExtNum()
 					);
-
-					EslMessage eslMessage = EslConnectionUtil.sendSyncApiCommand(
-							"uuid_bridge",
-							String.format("%s %s",uuid, uniqueID),
-							eslConnectionPool
-					);
-					boolean bridgeSucceed = false;
-					if(eslMessage.getBodyLines().size() > 0){
-						if(eslMessage.getBodyLines().get(0).contains("+OK")){
-							bridgeSucceed = true;
-						}
-					}
-					if(!bridgeSucceed){
-						log.error("{} call bridged failed： {}", uuid, JSON.toJSONString(eslMessage));
-					}else{
-						log.info("{} call bridged successfully： {}", uuid, JSON.toJSONString(eslMessage));
-					}
 
 					assert null != agentSessionEntity;
 					// 记录当前接听者;
@@ -685,7 +692,6 @@ public class CallHandler {
 					inboundDetail.setTransferredSucceed(true);
 
 					breakWaitMusic();
-
 					log.info("{} resetAgentBusyLockTime. uerId={}, extNum={}",
 							uuid,
 							agentSessionEntity.getOpNum(),
@@ -733,7 +739,14 @@ public class CallHandler {
 			});
 		}
 
-
+		String[] abnormalCodeList = new String[]{
+				OriginateSessionErrorCode.USER_NOT_REGISTERED,
+				OriginateSessionErrorCode.DESTINATION_OUT_OF_ORDER,
+				OriginateSessionErrorCode.NO_ANSWER,
+				OriginateSessionErrorCode.NO_USER_RESPONSE,
+				OriginateSessionErrorCode.RECOVERY_ON_TIMER_EXPIRE,
+				OriginateSessionErrorCode.INCOMPATIBLE_DESTINATION
+		};
 
 		@Override
 		public void backgroundJobResultReceived(String addr, EslEvent event) {
@@ -744,6 +757,16 @@ public class CallHandler {
 				transferFailed = true;
 				log.error("{} exception result got while connect extension，details：{}", uuid, event.toString());
 			}
+			if(eslStr.contains(OriginateSessionErrorCode.USER_NOT_REGISTERED)){
+				resetAgentStatus();
+			}
+
+			for (String caseStr : abnormalCodeList) {
+				if(eslStr.contains(caseStr)){
+					reportExtensionStatusToWsClient();
+					return;
+				}
+			}
 		}
 
 		@Override
@@ -751,6 +774,13 @@ public class CallHandler {
 			return CallHandler.class.getName();
 		}
 	}
+
+	private void reportExtensionStatusToWsClient() {
+		MessageHandlerEngineList.sendReplyToAgent(agentSessionEntity.getOpNum(),
+				new MessageResponse(RespStatus.EXTENSION_CANNOT_CONNECTED, JSON.toJSONString(agentSessionEntity))
+		);
+	}
+
 
 	@Override
 	public boolean equals(Object o) {

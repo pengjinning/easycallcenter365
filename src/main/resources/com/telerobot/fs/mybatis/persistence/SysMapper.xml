@@ -187,7 +187,7 @@
 	<update id="resetAgentBusyLockTimeout">
 		<![CDATA[
 		update  cc_agent_online
-		   set agent_status=1, busy_lock_time = 0
+		   set agent_status=2, busy_lock_time = 0
 		where busy_lock_time > 0 and opnum=#{opnum}  and busy_lock_time <=  #{expiredTimeMills}
 		]]>
 	</update>
@@ -222,5 +222,32 @@
 		order by lastHangupTime asc
 	</select>
 
+
+	<resultMap id="ExtensionResultMap" type="com.telerobot.fs.entity.dao.CcExtNum">
+		<id column="ext_id" property="extId" jdbcType="INTEGER"/>
+		<result column="ext_num" property="extNum" jdbcType="VARCHAR"/>
+		<result column="ext_pass" property="extPass" jdbcType="VARCHAR"/>
+		<result column="user_code" property="userCode" jdbcType="VARCHAR"/>
+	</resultMap>
+
+	<update id="updateExtension" parameterType="com.telerobot.fs.entity.dao.CcExtNum">
+        UPDATE cc_ext_num
+        SET
+            ext_num = #{extNum, jdbcType=VARCHAR},
+            ext_pass = #{extPass, jdbcType=VARCHAR},
+            user_code = #{userCode, jdbcType=VARCHAR}
+        WHERE
+            ext_id = #{extId, jdbcType=INTEGER}
+    </update>
+
+	<select id="selectAllExtensions" resultMap="ExtensionResultMap">
+        SELECT
+            ext_id,
+            ext_num,
+            ext_pass,
+            user_code
+        FROM
+            cc_ext_num
+    </select>
 
 </mapper>

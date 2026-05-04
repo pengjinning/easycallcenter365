@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.telerobot.fs.utils.StringUtils;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,6 +86,20 @@ public class MessageHandlerEngineList {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 *  send ws message to specific acd agent
+	 * @param opNum user code of acd agent
+	 * @param msg
+	 */
+	public static boolean sendReplyToAgent(String opNum, MessageResponse msg) {
+		MessageHandlerEngine engine = getInstance().getMsgHandlerEngineByOpNum(opNum);
+		if(engine != null){
+			engine.sendReplyToAgent(msg);
+			return true;
+		}
+		return  false;
 	}
 
 	/**

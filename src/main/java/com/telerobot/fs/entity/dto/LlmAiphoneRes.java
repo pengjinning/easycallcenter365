@@ -43,7 +43,7 @@ public class LlmAiphoneRes {
     /**
      * tts合成文件路径（预合成）
      */
-    private String ttsFilePath;
+    private String ttsFilePathList;
 
     /**
      * 流式合成文本

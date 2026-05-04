@@ -9,6 +9,7 @@ import com.coze.openapi.client.connversations.message.model.Message;
 import com.coze.openapi.service.auth.JWTOAuthClient;
 import com.coze.openapi.service.auth.TokenAuth;
 import com.coze.openapi.service.service.CozeAPI;
+import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.entity.dto.LlmAiphoneRes;
 import com.telerobot.fs.entity.dto.llm.CozeAccount;
 import com.telerobot.fs.robot.AbstractChatRobot;
@@ -20,6 +21,8 @@ import org.apache.commons.lang3.StringUtils;
 
 import javax.websocket.OnError;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Coze  extends AbstractChatRobot {
@@ -109,7 +112,12 @@ public class Coze  extends AbstractChatRobot {
         if(firstRound) {
             firstRound = false;
 
-            String openingRemarks = llmAccountInfo.openingRemarks;
+            JSONObject bizJson = new JSONObject();
+            if (null != callDetail && null != callDetail.getOutboundPhoneInfo() && org.apache.commons.lang.StringUtils.isNotBlank( callDetail.getOutboundPhoneInfo().getBizJson())) {
+                bizJson = JSONObject.parseObject(callDetail.getOutboundPhoneInfo().getBizJson());
+            }
+            String openingRemarks = replaceParams(llmAccountInfo.openingRemarks, bizJson);
+
             addDialogue(ROLE_ASSISTANT, openingRemarks);
 
             ttsTextCache.add(openingRemarks);
@@ -132,6 +140,7 @@ public class Coze  extends AbstractChatRobot {
                 closeTts();
 
                 aiphoneRes.setBody(noVoiceTips);
+                return aiphoneRes;
             }
         }
 
@@ -152,7 +161,16 @@ public class Coze  extends AbstractChatRobot {
     private JSONObject sendStreamingRequest(LlmAiphoneRes aiphoneRes, String question, String cozeToken){
         JSONObject finalResponse = new JSONObject();
         finalResponse.put("role", "assistant");
-
+        Map<String, String> customVariables = new HashMap<>();
+        CustmInfoEntity custmInfoEntity= callDetail.getOutboundPhoneInfo();
+        if (null != custmInfoEntity) {
+            if (org.apache.commons.lang.StringUtils.isNotBlank(custmInfoEntity.getBizJson())) {
+                JSONObject bizJson = JSONObject.parseObject(custmInfoEntity.getBizJson());
+                for (String k: bizJson.keySet()) {
+                    customVariables.put(k, bizJson.getString(k));
+                }
+            }
+        }
         String url = getAccount().serverUrl;
         if(!url.endsWith("/")){
             url = url + "/";
@@ -177,6 +195,7 @@ public class Coze  extends AbstractChatRobot {
                 CreateChatReq.builder()
                         .botID(botID)
                         .userID(uuid)
+                        .customVariables(customVariables)
                         .messages(Collections.singletonList(Message.buildUserQuestionText(question)))
                         .build();
         if(!StringUtils.isEmpty(conversationId)) {

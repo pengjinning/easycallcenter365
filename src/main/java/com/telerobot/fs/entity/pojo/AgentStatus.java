@@ -55,7 +55,7 @@ public enum AgentStatus {
     /**
      * 坐席预占(呼入来电锁定)
      */
-    lockStatus("lockStatus", "预占", 4);
+    lockStatus("lockStatus", "预占", 7);
 
 
 
@@ -67,7 +67,7 @@ public enum AgentStatus {
     /**
      *  状态描述
      */
-    private String text;
+    private String text = "";
 
 
     /**

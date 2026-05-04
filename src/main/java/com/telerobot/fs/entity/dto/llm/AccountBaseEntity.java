@@ -29,9 +29,18 @@ package com.telerobot.fs.entity.dto.llm;
     public String openingRemarks;
 
 
+    public String kbQueryTopicNotFoundTips;
+
+    public String  llmTryFailedTips;
+
     public String voiceSource;
 
     public String voiceCode;
+
+    public String asrLanguageCode;
+    public String ttsLanguageCode;
+    public String asrModels;
+    public String ttsModels;
 
     public String asrProvider;
 
@@ -76,4 +85,26 @@ package com.telerobot.fs.entity.dto.llm;
     public String transferManualDigit;
 
     public int kbCatId;
+
+
+
+    /**
+     * The voice prompt played when  transferring to agent tips string (wav file)
+     */
+    public String transferToAgentTipsWav;
+
+    /**
+     * The voice prompt played when call session hangup (wav file)
+     */
+    public String hangupTipsWav;
+
+    /**
+     * tips for No Voice (wav file)
+     */
+    public String customerNoVoiceTipsWav;
+
+    /**
+     * The opening remarks of a phone call (wav file)
+     */
+    public String openingRemarksWav;
 }

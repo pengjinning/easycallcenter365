@@ -1,6 +1,7 @@
 package com.telerobot.fs.mybatis.dao;
 
 import com.telerobot.fs.entity.dao.BizGroup;
+import com.telerobot.fs.entity.dao.CcExtNum;
 import com.telerobot.fs.entity.dao.ExtPowerConfig;
 import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AgentEx;
@@ -134,5 +135,18 @@ public class SysDaoImpl implements SysDao {
 	@Override
 	public  List<LlmKb> getKbListByCatId(int catId){
          return mapper.getKbListByCatId(catId);
+	}
+
+	@Override
+	public int updateExtension(CcExtNum ccExtNum) {
+		if (ccExtNum == null || ccExtNum.getExtId() == null) {
+			return 0;
+		}
+		return mapper.updateExtension(ccExtNum);
+	}
+
+	@Override
+	public List<CcExtNum> selectAllExtensions() {
+		return mapper.selectAllExtensions();
 	}
 }

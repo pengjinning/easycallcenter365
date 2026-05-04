@@ -22,13 +22,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SessionManager {
 	private static SessionManager instance;
 	private static final Object syncRoot = new Object();
-	private static final Logger logger = LoggerFactory.getLogger(MessageHandlerEngine.class);
+	private static final Logger logger = LoggerFactory.getLogger(SessionManager.class);
 	
 	/**
 	 * 保存所有客户端的Session会话信息的容器
 	 */
-	private Map<String, SessionEntity> sessionContainer = new ConcurrentHashMap<String, SessionEntity>();
-	
+	private Map<String, SessionEntity> sessionContainer = new ConcurrentHashMap<String, SessionEntity>(1000);
+
+	public List<String> getAllUserIpList(){
+		List<String> allIpAddress = new ArrayList<String>(200);
+		Iterator<Map.Entry<String, SessionEntity>> it = sessionContainer.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<String, SessionEntity> entry = it.next();
+			String ip = entry.getValue().getClientIp();
+			if (!allIpAddress.contains(ip)) {
+				allIpAddress.add(ip);
+			}
+		}
+		return  allIpAddress;
+	}
 	
 	private SessionManager() {
 
@@ -201,6 +213,7 @@ public class SessionManager {
 							getMsgHandlerEngineByOpNum(session.getOpNum());
 					if (null != engine) {
 						if (engine.getSessionInfo() != null) {
+							logger.info("unLock acd agent extNum={}, opNum={}.", session.getExtNum(), session.getOpNum());
 							engine.getSessionInfo().unLock();
 						}
 					}

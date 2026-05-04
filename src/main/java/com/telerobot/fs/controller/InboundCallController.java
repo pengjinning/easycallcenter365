@@ -92,8 +92,8 @@ public class InboundCallController {
 		}
 
 		final String uuid = request.getParameter("uuid");
-		final String caller = request.getParameter("caller").replace("+86", "");
-		final String callee = request.getParameter("callee").replace("+86", "");
+		final String caller = request.getParameter("caller").replace("+", "").replace(" ", "");
+		final String callee = request.getParameter("callee").replace("+", "").replace(" ", "");
 		final String mediaPort = request.getParameter("local-media-port");
 		final String remoteVideoPort = request.getParameter("remote_video_port");
 		final String loadTestUuid = request.getParameter("load-test-uuid");
@@ -106,8 +106,8 @@ public class InboundCallController {
 				mainThreadPool.getCompletedTaskCount(),
 				mainThreadPool.getCorePoolSize()
 		);
-		logger.info("RECV NEW INBOUND CALL, uuid:{}, caller:{}, mediaPort:{}, recordTime: {}, remoteVideoPort:{}",
-				uuid, caller, mediaPort, loadTestUuid, remoteVideoPort);
+		logger.info("RECV NEW INBOUND CALL, uuid:{}, caller:{}, callee:{}, mediaPort:{}, recordTime: {}, remoteVideoPort:{}",
+				uuid, caller, callee,mediaPort, loadTestUuid, remoteVideoPort);
 		logger.info("uuid: {}, currentThreadPoolInfo: {}", uuid, currentThreadPoolInfo);
 		int maxPoolSize =  mainThreadPool.getCorePoolSize();
 		if(mainThreadPool.getActiveCount() >=  maxPoolSize){
@@ -137,6 +137,10 @@ public class InboundCallController {
 							}
 
                             String mediaFile = genRecordingsFileName(remoteVideoPort, caller, callee);
+							String groupId = "0";
+							if("acd".equalsIgnoreCase(inboundConfig.getAiTransferType())){
+								groupId = inboundConfig.getAiTransferData();
+							}
                             InboundDetail inboundDetail = new InboundDetail(
                                     UuidGenerator.GetOneUuid(),
                                     caller,
@@ -144,7 +148,7 @@ public class InboundCallController {
                                     System.currentTimeMillis(),
                                     uuid,
                                     mediaFile,
-                                    String.valueOf(0),
+									groupId,
                                     remoteVideoPort,
                                     null
                             );
@@ -185,6 +189,10 @@ public class InboundCallController {
 
 								account.voiceSource = inboundConfig.getVoiceSource();
                                 account.voiceCode = inboundConfig.getVoiceCode();
+								account.ttsModels = inboundConfig.getTtsModels();
+								account.ttsLanguageCode = inboundConfig.getTtsLanguageCode();
+								account.asrModels = inboundConfig.getAsrModels();
+								account.asrLanguageCode = inboundConfig.getAsrLanguageCode();
                                 account.asrProvider = inboundConfig.getAsrProvider();
 								account.aiTransferType = inboundConfig.getAiTransferType();
 								account.aiTransferData = inboundConfig.getAiTransferData();
@@ -209,7 +217,8 @@ public class InboundCallController {
 								CallHandler callHandler = new CallHandler(inboundDetail);
 								callHandler.setSatisfSurveyIvrId(inboundConfig.getSatisfSurveyIvrId());
 								if (InboundGroupHandler.addCallToQueue(callHandler,inboundConfig.getAiTransferData())) {
-									logger.info("{} successfully add call to acd queue.", inboundDetail.getUuid());
+									logger.info("{} successfully add call to acd queue. transferData={}",
+											inboundDetail.getUuid(), inboundConfig.getAiTransferData());
 								}
 							}else if("ivr".equalsIgnoreCase(inboundConfig.getServiceType())) {
 								String ivrPlanId =  inboundConfig.getIvrId();

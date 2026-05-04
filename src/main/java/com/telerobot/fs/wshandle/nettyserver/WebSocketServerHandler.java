@@ -9,6 +9,7 @@ import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.StringUtils;
 import com.telerobot.fs.utils.ThreadUtil;
 import com.telerobot.fs.wshandle.*;
+import com.telerobot.fs.wshandle.SecurityManager;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
@@ -168,6 +169,13 @@ public class WebSocketServerHandler extends BaseWebSocketServerHandler {
 					return;
 				}
 
+				if (msgEngine.getSessionInfo() == null || !msgEngine.getSessionInfo().IsValid()) {
+					String tips = "can not process your request, phone-bar login timeout.";
+					logger.warn(tips);
+					sendReplyToAgent(RespStatus.UNAUTHORIZED, tips, msgEngine);
+					return;
+				}
+
                 if(!"setHearBeat".equals(msgObj.getAction())){
                     msgEngine.processMsg(msgObj);
                 }else{
@@ -208,7 +216,7 @@ public class WebSocketServerHandler extends BaseWebSocketServerHandler {
 			handshaker = wsFactory.newHandshaker(req);
 			Constant.handShakerMap.put(ctx.channel().id().asLongText(), handshaker);
 			// 在这里处理用户登录;
-			handleWsLogin(ctx, req.uri());
+			handleWsLogin(ctx, req.uri(), req);
 		}
 		if (handshaker == null) {
 			// 不支持
@@ -218,7 +226,7 @@ public class WebSocketServerHandler extends BaseWebSocketServerHandler {
 		}
 	}
 
-	private void handleWsLogin(ChannelHandlerContext ctx, final String requestURI) {
+	private void handleWsLogin(ChannelHandlerContext ctx, final String requestURI, FullHttpRequest req) {
 		WebsocketThreadPool.addTask(new Runnable() {
 			@Override
 			public void run() {
@@ -272,8 +280,28 @@ public class WebSocketServerHandler extends BaseWebSocketServerHandler {
 					jsonObject.put("groups", groups);
 					replyMsg.setStatus(200);
 					replyMsg.setObject(jsonObject);
+
+					// 优先从 Nginx 传递的 header 获取真实 IP
+					String clientIP = req.headers().get("X-Real-IP");
+					if (clientIP == null || clientIP.isEmpty()) {
+						clientIP = req.headers().get("X-Forwarded-For");
+						// X-Forwarded-For 可能是多个 IP，取第一个
+						if (clientIP != null && clientIP.contains(",")) {
+							clientIP = clientIP.split(",")[0].trim();
+						}
+					}
+					// 兜底：如果 header 为空，再用 remoteAddress
+					if (clientIP == null || clientIP.isEmpty()) {
+						String remoteAddr = ctx.channel().remoteAddress().toString();
+						clientIP = CommonUtils.getIpFromFullAddress(remoteAddr);
+					}
+
+					logger.info("real client IP: {}", clientIP);
+
+//					String remoteAddr = ctx.channel().remoteAddress().toString();
+//					String clientIP = CommonUtils.getIpFromFullAddress(remoteAddr);
 					SessionEntity sessionEntity = new SessionEntity();
-					sessionEntity.setClientIp(ctx.channel().remoteAddress().toString());
+					sessionEntity.setClientIp(clientIP);
 					sessionEntity.setExtNum(extnum);
 					sessionEntity.setOpNum(opnum);
 					sessionEntity.setSessionId(ctx.channel().id().asLongText());
@@ -282,11 +310,12 @@ public class WebSocketServerHandler extends BaseWebSocketServerHandler {
 					sessionEntity.setLoginTime(System.currentTimeMillis());
 					sessionEntity.setGroupId(groupId);
 					boolean addSessionOk = SessionManager.getInstance().add(sessionEntity); // 添加到会话管理
-					if (addSessionOk) {
-						logger.info("{} successfully add current session.", traceId);
-					} else {
+					if (!addSessionOk) {
 						logger.error("{} failed to add current session.", traceId);
+						return;
 					}
+					SecurityManager.getInstance().addClientIpToFirewallWhiteList(clientIP);
+					logger.info("{} successfully add current session.", traceId);
 					MessageHandlerEngine myEngine = new MessageHandlerEngine(ctx);
 					logger.info("{} successfully create MsgEngine for current user.", traceId);
 					if (!MessageHandlerEngineList.getInstance().add(myEngine)) {

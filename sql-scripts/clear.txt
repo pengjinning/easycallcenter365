@@ -30,3 +30,15 @@ reset master;
     
 4. update version info:
    update sys_config set config_value='v20260217' where config_key='sys.version';
+   
+5. delete all test-user accounts:  
+   DELETE from sys_user where user_name <> 'admin';
+   
+6. delete install_lock file:
+   rm -rf /home/freeswitch/etc/freeswitch/autoload_configs/install_lock.data    
+   
+7. 修改参数管理页面：
+   event-socket-ip 设置为 127.0.0.1  
+   firewalld-enabled 设置为 false
+   
+   

@@ -1,6 +1,7 @@
 package com.telerobot.fs.mybatis.persistence;
 
 import com.telerobot.fs.entity.dao.BizGroup;
+import com.telerobot.fs.entity.dao.CcExtNum;
 import com.telerobot.fs.entity.dao.ExtPowerConfig;
 import com.telerobot.fs.entity.dao.LlmKb;
 import com.telerobot.fs.entity.dto.AgentEx;
@@ -83,4 +84,9 @@ public interface SysMapper {
     int updateParam(@Param("code")String paramCode, @Param("value") String paramValue);
 
     List<LlmKb> getKbListByCatId(int catId);
+
+
+	int updateExtension(CcExtNum ccExtNum);
+
+	List<CcExtNum> selectAllExtensions();
 }

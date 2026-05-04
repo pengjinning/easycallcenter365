@@ -1,5 +1,6 @@
 package com.telerobot.fs.robot;
 
+import com.telerobot.fs.config.AudioUtils;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.bo.LlmConsumer;
@@ -7,6 +8,7 @@ import com.telerobot.fs.entity.bo.RobotInteractiveParam;
 import com.telerobot.fs.entity.dto.llm.AccountBaseEntity;
 import com.telerobot.fs.entity.po.HangupCause;
 import com.telerobot.fs.entity.pojo.SpeechResultEntity;
+import com.telerobot.fs.entity.pojo.TtsFileInfo;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.ThreadPoolCreator;
 import com.telerobot.fs.utils.ThreadUtil;
@@ -14,6 +16,7 @@ import link.thingscloud.freeswitch.esl.EslConnectionPool;
 import link.thingscloud.freeswitch.esl.EslConnectionUtil;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.constant.UuidKeys;
+import link.thingscloud.freeswitch.esl.util.CurrentTimeMillisClock;
 import org.apache.commons.lang.StringUtils;
 import org.dom4j.Document;
 import org.dom4j.Element;
@@ -27,6 +30,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 public abstract class RobotBase implements IEslEventListener {
@@ -65,17 +69,26 @@ public abstract class RobotBase implements IEslEventListener {
         playBackStoppedSignalForLlmConcurrency.release();
     }
     private boolean playBackFinishedSignalReleased = false;
-    protected synchronized void releasePlayBackFinishedSignal(){
-         if(!playBackFinishedSignalReleased){
-             playBackFinishedSignalReleased = true;
-             playBackFinishedSignal.release();
-         }
+    protected void releasePlayBackFinishedSignal(){
+        String lockerKey = String.format("%s%s", uuid, "releasePlayBackFinishedSignal");
+        synchronized (lockerKey.intern()) {
+            if (!playBackFinishedSignalReleased) {
+                playBackFinishedSignalReleased = true;
+                playBackFinishedSignal.release();
+                logger.info("{} releasePlayBackFinishedSignal enter", getTraceId());
+            }
+        }
+        logger.info("{} releasePlayBackFinishedSignal exit", getTraceId());
     }
-    protected void waitForPlayBackFinished(){
+    protected void waitForPlayBackFinished(int...waiTimeoutMills){
         try {
             playBackFinishedSignalReleased = false;
+            int waitMills = 181000;
+            if(waiTimeoutMills.length > 0){
+                waitMills = waiTimeoutMills[0];
+            }
             try {
-                playBackFinishedSignal.tryAcquire(1, 181000, TimeUnit.MILLISECONDS);
+                playBackFinishedSignal.tryAcquire(1, waitMills, TimeUnit.MILLISECONDS);
             }catch (Throwable e){
             }
         }catch (Throwable e){
@@ -117,6 +130,8 @@ public abstract class RobotBase implements IEslEventListener {
      */
     protected volatile boolean transferToAgent = false;
 
+    protected volatile boolean transferToAgentExecuted = false;
+
     /**
      *  动态切换语音识别方式；
      */
@@ -127,6 +142,7 @@ public abstract class RobotBase implements IEslEventListener {
     public void setAsrModelType(String asrType){
         this.currentAsrType = asrType;
     }
+
 
     /**
      * 接收到了挂机信号
@@ -181,7 +197,7 @@ public abstract class RobotBase implements IEslEventListener {
                    throwable.toString(),
                    CommonUtils.getStackTraceString(throwable.getStackTrace())  );
            CommonUtils.setHangupCauseDetail(callDetail, HangupCause.SYSTEM_INTERNAL_ERROR, "details:" + errorMsg );
-           hangupAndCloseConn();
+           hangupAndCloseConn("cant-not-create-chatRobot-object");
         }
     }
 
@@ -369,15 +385,13 @@ public abstract class RobotBase implements IEslEventListener {
     /**
      *  发送挂机指令; 释放计数器; 关闭Esl连接;
      */
-    public void hangupAndCloseConn(boolean...killcall){
-        if(killcall.length == 0) {
-            EslConnectionUtil.sendExecuteCommand(
-                    "hangup",
-                    "callCenter-mandatory-hangup",
-                    this.uuid,
-                    this.eslConnectionPool
-            );
-        }
+    public void hangupAndCloseConn(String reason) {
+        EslConnectionUtil.sendExecuteCommand(
+                "hangup",
+                reason,
+                this.uuid,
+                this.eslConnectionPool
+        );
         releaseThreadNum();
     }
 
@@ -475,6 +489,68 @@ public abstract class RobotBase implements IEslEventListener {
     }
 
 
+    private static String[] longConnectionTtsList = SystemConfig.getValue(
+            "tts-long-connection-list",
+            "deepgram_tts,"
+     ).split(",");
+
+    /**
+     *  check if current tts-provider supports long connection.
+     * @return
+     */
+    public  boolean checkTtsLongConnection(){
+        String currentTtsProvider = chatRobot.getAccount().voiceSource;
+        for (String s : longConnectionTtsList) {
+            if(currentTtsProvider.equalsIgnoreCase(s)){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected void interruptRobotSpeech(){
+        if(!checkTtsLongConnection()) {
+            logger.info("{} send uuid_break command to FreeSWITCH.", uuid);
+            EslConnectionUtil.sendSyncApiCommand("uuid_break", uuid + " all");
+        }else{
+            logger.info("{} send {}_break command to FreeSWITCH.", chatRobot.getAccount().voiceSource, uuid);
+            EslConnectionUtil.sendExecuteCommand(chatRobot.getAccount().voiceSource + "_break", "customer-speech-interrupt", uuid);
+        }
+    }
+
+    /**
+     *   long-connection TTS,  requires an explicit close command.
+     * @param reason
+     */
+    protected void closeTtsChannel(String reason){
+        if(checkTtsLongConnection()) {
+            String closeChannelCmd = String.format("%s_close", chatRobot.getAccount().voiceSource);
+            logger.info("{} send {} command to FreeSWITCH.", uuid, closeChannelCmd);
+            EslConnectionUtil.sendExecuteCommand(closeChannelCmd, reason, uuid);
+        }
+    }
+
+    protected void playSound(String tips){
+        String ttsProvider =  chatRobot.getAccount().voiceSource;
+        if(StringUtils.isEmpty(ttsProvider)) {
+            startPlayback(AudioUtils.joinTtsFiles(tips));
+        }else {
+            chatRobot.sendTtsRequest(tips);
+            chatRobot.closeTts();
+        }
+    }
+
+    public void startPlayback(TtsFileInfo ttsFileInfo) {
+        playbackStartTime = System.currentTimeMillis();
+        playbackEndTime = playbackStartTime + ttsFileInfo.getTimeLength();
+        EslConnectionUtil.sendExecuteCommand(
+                "playback",
+                "{playback_sleep_val=0}" + ttsFileInfo.getFilesString(),
+                 uuid
+        );
+        logger.info("{} Start to play '{}' wav file, {}", getTraceId(), ttsFileInfo.getTtsFileNumber(), ttsFileInfo.getFilesString());
+    }
+
     /**
      *  开启监视线程; 如果一个通话1分钟还收到客户讲话识别结果，则强制结束它;
      *  （很有可能是未收到挂机信号，强制结束是为了避免ThreadNum泄漏，也为了避免电话一直占线;）
@@ -515,7 +591,7 @@ public abstract class RobotBase implements IEslEventListener {
                 iterator.remove();
                 if (task.uuid.length() != 0) {
                     logger.info("{} The call is abnormal, The customer has not spoken for a long time and is about to end the call.", task.uuid);
-                    task.hangupAndCloseConn();
+                    task.hangupAndCloseConn("customer-has-not-spoken-for-a-long-time");
                 }
                 task.processFsMsg(task.generateHangupEvent("doMonitor-Longtime-No-Speak"));
             }

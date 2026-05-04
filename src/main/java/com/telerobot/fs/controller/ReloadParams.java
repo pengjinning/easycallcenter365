@@ -6,19 +6,25 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.telerobot.fs.config.AppContextProvider;
 import com.telerobot.fs.config.SystemConfig;
 import com.telerobot.fs.entity.dto.FreeswitchNodeInfo;
+import com.telerobot.fs.entity.pojo.AgentStatus;
 import com.telerobot.fs.service.CallTaskService;
 import com.telerobot.fs.service.SysService;
 import com.telerobot.fs.tts.aliyun.CosyVoiceDemo;
 import com.telerobot.fs.utils.CommonUtils;
 import com.telerobot.fs.utils.DESUtil;
 import com.telerobot.fs.utils.DateUtils;
-import com.telerobot.fs.utils.StringUtils;
+import com.telerobot.fs.wshandle.MessageHandlerEngine;
+import com.telerobot.fs.wshandle.MessageHandlerEngineList;
+import com.telerobot.fs.wshandle.SecurityManager;
+import com.telerobot.fs.wshandle.SessionEntity;
+import com.telerobot.fs.wshandle.impl.AgentCc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
+
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
@@ -35,6 +41,7 @@ public class ReloadParams {
 	@ResponseBody
 	public String reload(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException {
 		sysService.refreshParams();
+		SecurityManager.getInstance().reloadFirewallConfig();
 		return "success";
 	}
 
@@ -206,15 +213,71 @@ public class ReloadParams {
 		return "success";
 	}
 
-	@RequestMapping("/getAgentBusyStatusSubList")
+	@RequestMapping("/getAgent")
 	@ResponseBody
-	public String getAgentBusyStatusSubList(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException, InterruptedException {
-		String list = SystemConfig.getValue("agent-busy-status", "");
-
-		if(!StringUtils.isNullOrEmpty(list)){
-			String[] tmpArray = list.split("\\|");
-
+	public String getAgentStatus(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException, InterruptedException {
+		String clientIP = request.getRemoteAddr();
+		if(!"127.0.0.1".equalsIgnoreCase(clientIP)){
+			return  "forbidden, only 127.0.0.1 allowed.";
 		}
+		String groupId = request.getParameter("groupId");
+
+		List<SessionEntity> agentList = AppContextProvider.getBean(SysService.class).getFreeUserList(groupId);
+		int agentNum =  agentList.size();
+		if(agentNum > 0) {
+			SessionEntity agentFound = null;
+			for (SessionEntity agent : agentList) {
+				MessageHandlerEngine engine = MessageHandlerEngineList.
+						getInstance().getMsgHandlerEngine(agent.getSessionId());
+				if (engine != null) {
+					SessionEntity session = engine.getSessionInfo();
+					if (session != null && session.tryLock()) {
+						logger.info(" An free agent is successfully obtained. opnum={}, extnum={}, lastHangupTime={}, agent groupId={}.",
+								agent.getOpNum(), agent.getExtNum(), agent.getLastHangupTime(), agent.getGroupId()
+						);
+						logger.info("Set the busy lock status of an agent. uerId={}, extNum={}",
+								agent.getOpNum(),
+								agent.getExtNum()
+						);
+						AgentCc.setAgentStatus(AgentStatus.lockStatus, agent.getOpNum());
+						agentFound = agent;
+						break;
+					}
+				}else{
+					return "No acd agents are online.";
+				}
+			}
+			if(agentFound != null){
+				return "Get a free agent successfully. " + JSON.toJSONString(agentFound);
+			}else{
+				return "No free acd agents.";
+			}
+		}
+
+		return "success";
+	}
+
+	@RequestMapping("/tryLockAgent")
+	@ResponseBody
+	public String tryLockAgent(HttpServletRequest request,Map<String,Object> model) throws InstantiationException, IllegalAccessException, InterruptedException {
+		String clientIP = request.getRemoteAddr();
+		if (!"127.0.0.1".equalsIgnoreCase(clientIP)) {
+			return "forbidden, only 127.0.0.1 allowed.";
+		}
+		String opNum = request.getParameter("opnum");
+		MessageHandlerEngine engine = MessageHandlerEngineList.
+				getInstance().getMsgHandlerEngineByOpNum(opNum);
+
+		if (engine != null) {
+			SessionEntity session = engine.getSessionInfo();
+			if (session != null && session.tryLock()) {
+				AgentCc.setAgentStatus(AgentStatus.lockStatus, session.getOpNum());
+				return "Lock agent successfully. " +  JSON.toJSONString(session);
+			} else {
+				return "tryLock acd agent failed.";
+			}
+		}
+
 		return "success";
 	}
 }

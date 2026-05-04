@@ -19,13 +19,12 @@ import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URLDecoder;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -35,6 +34,40 @@ import java.util.zip.ZipOutputStream;
  */
 public class CommonUtils<T>  {
 	private static final Logger logger = LoggerFactory.getLogger(CommonUtils.class);
+
+	public static String  execSystemCommand(String command) {
+		Runtime runtime = Runtime.getRuntime();
+		StringBuilder output = new StringBuilder();
+		try {
+			Process p = runtime.exec(command);
+			// 启动另一个进程来执行命令
+			BufferedInputStream in = new BufferedInputStream(p.getInputStream());
+			BufferedReader inBr = new BufferedReader(new InputStreamReader(in));
+			String lineStr;
+			//获得命令执行后在控制台的输出信息
+			while ((lineStr = inBr.readLine()) != null) {
+				output.append(lineStr).append("\n");
+			}
+			if (p.waitFor(11, TimeUnit.SECONDS)) {
+				// p.exitValue()==0表示正常结束，1：非正常结束
+				if (p.exitValue() == 1) {
+					logger.error("exec system command error: {}", command);
+				}
+			}
+
+		} catch (Throwable e) {
+			logger.error("exec system command error: {} {} {}", command, e.toString(), CommonUtils.getStackTraceString(e.getStackTrace()));
+		}
+		return output.toString();
+	}
+
+	public static String getIpFromFullAddress(String clientFullAddr){
+		String ip = clientFullAddr;
+		if(clientFullAddr.contains(":")){
+			ip = clientFullAddr.substring(0, clientFullAddr.indexOf(":")) ;
+		};
+		return ip.replace("/","");
+	}
 
 	public static void hangupCallSession(String uuid, String reason){
 		EslConnectionUtil.sendExecuteCommand("hangup", reason, uuid);
@@ -109,24 +142,6 @@ public class CommonUtils<T>  {
         return true;
 	}
 
-	/**
-	 *  校验客户端 http 请求的 token
-	 * @param request
-	 * @return
-	 */
-	public static String validateHttpHeaderToken(HttpServletRequest request,  HttpServletResponse response) {
-		String sysToken = SystemConfig.getValue("call-center-api-token", "");
-		String token = request.getHeader("Authorization");
-		// remove start string: "Bearer "
-		if (!StringUtils.isEmpty(token) && token.length() > 7) {
-			token = token.substring(7);
-		}
-		if (!sysToken.equals(token)) {
-			response.setStatus(400);
-			return "{ \"code\": 400, \"msg\" : \"validate token error.\" }";
-		}
-		return "";
-	}
 
 	public static Map<String, String> parseUrlQueryString(String queryString) throws UnsupportedEncodingException {
 		Map<String, String> queryPairs = new HashMap<>(16);
@@ -287,7 +302,28 @@ public class CommonUtils<T>  {
 			return null;
 		}
 	}
-	
+
+	/**
+	 * String Scramble Tool Class
+	 * @param input
+	 * @return
+	 */
+	public static String shuffleString(String input) {
+		// 将字符串转换为字符数组以便随机交换
+		char[] chars = input.toCharArray();
+		Random random = new Random();
+
+		// Fisher-Yates洗牌算法
+		for (int i = chars.length - 1; i > 0; i--) {
+			int j = random.nextInt(i + 1); // 生成0到i之间的随机索引
+			// 交换字符
+			char temp = chars[i];
+			chars[i] = chars[j];
+			chars[j] = temp;
+		}
+		return new String(chars);
+	}
+
 	/**
 	 * 禁止jsp页面被客户端浏览器缓存
 	 * @param response

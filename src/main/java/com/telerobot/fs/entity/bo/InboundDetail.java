@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.annotation.JSONField;
 import com.telerobot.fs.entity.dao.CustmInfoEntity;
 import com.telerobot.fs.utils.StringUtils;
+import com.telerobot.fs.wshandle.SwitchChannel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +36,8 @@ public class InboundDetail {
     private volatile String ivrDtmfDigits = "";
     private volatile String hangupCause = "";
     private volatile boolean startDtmfExecuted = false;
+    private SwitchChannel switchChannel;
+    private volatile String satisfSurveyIvrId = "";
 
     /**
      *  如果该字段不为零，则是视频通话，否则为音频通话
@@ -238,12 +241,28 @@ public class InboundDetail {
         this.manualAnsweredTimeLen = manualAnsweredTimeLen;
     }
 
+    public String getSatisfSurveyIvrId() {
+        return satisfSurveyIvrId;
+    }
+
+    public void setSatisfSurveyIvrId(String satisfSurveyIvrId) {
+        this.satisfSurveyIvrId = satisfSurveyIvrId;
+    }
+
     public boolean getStartDtmfExecuted() {
         return startDtmfExecuted;
     }
 
     public void setStartDtmfExecuted(boolean startDtmfExecuted) {
         this.startDtmfExecuted = startDtmfExecuted;
+    }
+
+    public SwitchChannel getSwitchChannel() {
+        return switchChannel;
+    }
+
+    public void setSwitchChannel(SwitchChannel switchChannel) {
+        this.switchChannel = switchChannel;
     }
 
     public void setIvrDtmfDigits(String ivrDtmfDigits) {

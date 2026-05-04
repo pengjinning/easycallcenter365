@@ -45,16 +45,36 @@ public class AgentCc extends MsgHandlerBase {
         }
     }
 
+    public static boolean setAgentStatus(AgentStatus status, String opNum){
+        MessageHandlerEngine engine = MessageHandlerEngineList.getInstance().
+                getMsgHandlerEngineByOpNum(opNum);
+        if(null != engine) {
+            AgentCc agentCc = ((AgentCc) engine.getMessageHandleByName("setAgentStatus"));
+            if(null != agentCc){
+                agentCc.setStatus(status.getIndex());
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * set agent status.
      * @param status
      */
     protected void setStatus(int status){
         int affectRow = sysService.setAgentStatus(getSessionInfo().getOpNum(), status);
+        String sessionId = getSessionInfo().getSessionId();
+        logger.info("try to set acd agent status={}, extNum={}, opNum={}, sessionId={}.",
+                status, getSessionInfo().getExtNum(), getSessionInfo().getOpNum(), sessionId);
         if(status == AgentStatus.free.getIndex()) {
             this.getSessionInfo().unLock();
+            logger.info("unLock acd agent extNum={}, opNum={}, sessionId={}.",
+                    getSessionInfo().getExtNum(), getSessionInfo().getOpNum(), sessionId);
         }
         if (affectRow == 1) {
+            logger.info("successfully set acd agent status={}, extNum={}, opNum={}, sessionId={}.",
+                    status, getSessionInfo().getExtNum(), getSessionInfo().getOpNum(), sessionId);
             AgentStatus agentStatus = AgentStatus.getItemByValue(status);
             String description = "cant not get description";
             if (null != agentStatus) {
@@ -65,6 +85,8 @@ public class AgentCc extends MsgHandlerBase {
             jsonObject.put("text", agentStatus.getText());
             sendReplyToAgent(new MessageResponse(RespStatus.STATUS_CHANGED, "agent status: " + description, jsonObject));
         } else {
+            logger.info("Failed to set acd agent status={}, extNum={}, opNum={}, sessionId={}.",
+                    status, getSessionInfo().getExtNum(), getSessionInfo().getOpNum(), sessionId);
             sendReplyToAgent(new MessageResponse(RespStatus.SERVER_ERROR, "update agent status error."));
         }
     }

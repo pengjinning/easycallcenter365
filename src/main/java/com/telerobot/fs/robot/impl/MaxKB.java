@@ -54,6 +54,7 @@ public class MaxKB extends AbstractChatRobot {
                 closeTts();
 
                 aiphoneRes.setBody(noVoiceTips);
+                return aiphoneRes;
             }
         }
 
@@ -67,7 +68,7 @@ public class MaxKB extends AbstractChatRobot {
                 }
             } catch (Throwable throwable) {
                 aiphoneRes.setStatus_code(0);
-                logger.error("{} talkWith MaxKB error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+                logger.error("{} talkWith MaxKB error: {} \n {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
             }
         }
 

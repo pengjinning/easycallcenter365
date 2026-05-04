@@ -3,6 +3,7 @@ package com.telerobot.fs.wshandle;
 import com.telerobot.fs.config.CallConfig;
 import com.telerobot.fs.entity.bo.ChanneState;
 import com.telerobot.fs.entity.bo.ChannelFlag;
+import com.telerobot.fs.entity.bo.InboundDetail;
 import com.telerobot.fs.entity.dto.CallMonitorInfo;
 import com.telerobot.fs.entity.dto.GatewayConfig;
 import com.telerobot.fs.wshandle.impl.*;
@@ -83,6 +84,10 @@ public class SwitchChannel {
 
 
     private volatile GatewayConfig gatewayConfig = null;
+
+    private volatile InboundDetail inboundDetail = null;
+
+    private volatile String bizFieldValue;
 
     /**
      * 挂机的sip状态码
@@ -251,6 +256,22 @@ public class SwitchChannel {
 
     public void setGatewayConfig(GatewayConfig gatewayConfig) {
         this.gatewayConfig = gatewayConfig;
+    }
+
+    public InboundDetail getInboundDetail() {
+        return inboundDetail;
+    }
+
+    public void setInboundDetail(InboundDetail inboundDetail) {
+        this.inboundDetail = inboundDetail;
+    }
+
+    public String getBizFieldValue() {
+        return bizFieldValue;
+    }
+
+    public void setBizFieldValue(String bizFieldValue) {
+        this.bizFieldValue = bizFieldValue;
     }
 
     /**

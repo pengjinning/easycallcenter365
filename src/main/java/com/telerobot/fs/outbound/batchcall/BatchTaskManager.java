@@ -190,6 +190,10 @@ public class BatchTaskManager implements Runnable {
             }
             this.llmAccount.voiceSource = batchEntity.getVoiceSource();
             this.llmAccount.voiceCode = batchEntity.getVoiceCode();
+            this.llmAccount.ttsModels = batchEntity.getTtsModels();
+            this.llmAccount.asrModels = batchEntity.getAsrModels();
+            this.llmAccount.asrLanguageCode = batchEntity.getAsrLanguageCode();
+            this.llmAccount.ttsLanguageCode = batchEntity.getTtsLanguageCode();
 
             llmAccount.asrProvider = batchEntity.getAsrProvider();
             llmAccount.aiTransferType = batchEntity.getAiTransferType();
@@ -293,10 +297,10 @@ public class BatchTaskManager implements Runnable {
         for (SessionEntity session : agentList) {
             double passedSecs = (System.currentTimeMillis() - session.getStateChangeTime()) / 1000d;
             boolean free = avgRingTimeLen - (avgCallTalkTimeLen - avgFillFormTimeLen  - passedSecs) > 0;
-            log.info("预测座席坐席 {} 在 {} 秒后的状态是否空闲 {}，当前座席状态{}， 当前状态已持续时间: {} 秒",
+            log.info("Predicted that agent {} will be free '{}'  in {} seconds. Current agent status is {}, and the current status has lasted for {} seconds.",
                     session.getOpNum(),
-                    avgRingTimeLen,
                     free,
+                    avgRingTimeLen,
                     AgentStatus.getItemByValue(session.getAgentStatus()).getName(),
                     passedSecs
             );

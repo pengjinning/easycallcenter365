@@ -80,16 +80,16 @@ public class TransferToAgent {
         account.aiTransferType = transferType;
 
         if(transferType.equalsIgnoreCase(TRANSFER_TO_ACD)) {
-            logger.info("{} Try to add call to acd queue .", callDetail.getUuid());
+            logger.info("{} Try to add call to acd queue, aiTransferData={}.", callDetail.getUuid(),  transferData);
             String groupId = "0";
-            if(transferData != null && StringUtils.isNullOrEmpty(transferData.trim())){
+            if(transferData != null && !StringUtils.isNullOrEmpty(transferData.trim())){
                 groupId = transferData.trim();
             }
             callDetail.setGroupId(groupId);
             CallHandler callHandler = new CallHandler(callDetail);
             callHandler.setSatisfSurveyIvrId(satisfSurveyIvrId);
-            if (InboundGroupHandler.addCallToQueue(callHandler, callDetail.getGroupId())) {
-                logger.info("{} Successfully add call to acd queue", callDetail.getUuid());
+            if (InboundGroupHandler.addCallToQueue(callHandler, groupId)) {
+                logger.info("{} Successfully add call to acd queue, groupId={}.", callDetail.getUuid(), callDetail.getGroupId());
             }
         }else  if(transferType.equalsIgnoreCase(TRANSFER_TO_GATEWAY)) {
             logger.info("{} Try to bridge call to external gateway. {}", callDetail.getUuid(),  transferData);

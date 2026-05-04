@@ -47,7 +47,7 @@ public class LocalNlpChat extends AbstractChatRobot {
             }
         } catch (Throwable throwable) {
             aiphoneRes.setStatus_code(0);
-            logger.error("{} talkWithAiAgent error: {}", uuid, CommonUtils.getStackTraceString(throwable.getStackTrace()));
+            logger.error("{} talkWithAiAgent error: {} \n {}", uuid, throwable.toString(), CommonUtils.getStackTraceString(throwable.getStackTrace()));
         }
 
         return aiphoneRes;
@@ -99,8 +99,24 @@ public class LocalNlpChat extends AbstractChatRobot {
                 chatContent = result.getJSONObject("result").getString("chatContent");
                 callCode = result.getJSONObject("result").getString("callCode");
                 String ttsContent = result.getJSONObject("result").getString("ttsContent");
-                ttsTextCache.add(ttsContent);
-                ttsTextLength += ttsContent.length();
+
+                if (chatContent.contains(LlmToolRequest.TRANSFER_TO_AGENT)) {
+                    aiphoneRes.setTransferToAgent(1);
+                    logger.info("{} `TRANSFER_TO_AGENT` command detected. ", getTraceId());
+                }
+
+                if (chatContent.contains(LlmToolRequest.HANGUP)) {
+                    aiphoneRes.setClose_phone(1);
+                    logger.info("{} `HANGUP` command detected. ", getTraceId());
+                }
+
+                if (!StringUtils.isEmpty(chatContent)) {
+                    chatContent = chatContent.replace(LlmToolRequest.TRANSFER_TO_AGENT,"")
+                            .replace(LlmToolRequest.HANGUP,"")
+                            .replace("`","");
+                    ttsTextCache.add(ttsContent);
+                    ttsTextLength += ttsContent.length();
+                }
             }
 
             logger.info("{} recv llm response end flag. answer={}", this.uuid, chatContent);

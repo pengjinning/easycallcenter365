@@ -1,0 +1,91 @@
+package com.telerobot.fs.config;
+
+/**
+ * ErrorCode for originate session fails
+ * @author easycallcenter365
+ */
+public class OriginateSessionErrorCode {
+
+    public static final String NONE = "NONE";
+    public static final String UNALLOCATED_NUMBER = "UNALLOCATED_NUMBER";
+    public static final String NO_ROUTE_TRANSIT_NET = "NO_ROUTE_TRANSIT_NET";
+    public static final String NO_ROUTE_DESTINATION = "NO_ROUTE_DESTINATION";
+    public static final String CHANNEL_UNACCEPTABLE = "CHANNEL_UNACCEPTABLE";
+    public static final String CALL_AWARDED_DELIVERED = "CALL_AWARDED_DELIVERED";
+    public static final String NORMAL_CLEARING = "NORMAL_CLEARING";
+    public static final String USER_BUSY = "USER_BUSY";
+    public static final String NO_USER_RESPONSE = "NO_USER_RESPONSE";
+    public static final String NO_ANSWER = "NO_ANSWER";
+    public static final String SUBSCRIBER_ABSENT = "SUBSCRIBER_ABSENT";
+    public static final String CALL_REJECTED = "CALL_REJECTED";
+    public static final String NUMBER_CHANGED = "NUMBER_CHANGED";
+    public static final String REDIRECTION_TO_NEW_DESTINATION = "REDIRECTION_TO_NEW_DESTINATION";
+    public static final String EXCHANGE_ROUTING_ERROR = "EXCHANGE_ROUTING_ERROR";
+    public static final String DESTINATION_OUT_OF_ORDER = "DESTINATION_OUT_OF_ORDER";
+    public static final String INVALID_NUMBER_FORMAT = "INVALID_NUMBER_FORMAT";
+    public static final String FACILITY_REJECTED = "FACILITY_REJECTED";
+    public static final String RESPONSE_TO_STATUS_ENQUIRY = "RESPONSE_TO_STATUS_ENQUIRY";
+    public static final String NORMAL_UNSPECIFIED = "NORMAL_UNSPECIFIED";
+    public static final String NORMAL_CIRCUIT_CONGESTION = "NORMAL_CIRCUIT_CONGESTION";
+    public static final String NETWORK_OUT_OF_ORDER = "NETWORK_OUT_OF_ORDER";
+    public static final String NORMAL_TEMPORARY_FAILURE = "NORMAL_TEMPORARY_FAILURE";
+    public static final String SWITCH_CONGESTION = "SWITCH_CONGESTION";
+    public static final String ACCESS_INFO_DISCARDED = "ACCESS_INFO_DISCARDED";
+    public static final String REQUESTED_CHAN_UNAVAIL = "REQUESTED_CHAN_UNAVAIL";
+    public static final String PRE_EMPTED = "PRE_EMPTED";
+    public static final String FACILITY_NOT_SUBSCRIBED = "FACILITY_NOT_SUBSCRIBED";
+    public static final String OUTGOING_CALL_BARRED = "OUTGOING_CALL_BARRED";
+    public static final String INCOMING_CALL_BARRED = "INCOMING_CALL_BARRED";
+    public static final String BEARERCAPABILITY_NOTAUTH = "BEARERCAPABILITY_NOTAUTH";
+    public static final String BEARERCAPABILITY_NOTAVAIL = "BEARERCAPABILITY_NOTAVAIL";
+    public static final String SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
+    public static final String BEARERCAPABILITY_NOTIMPL = "BEARERCAPABILITY_NOTIMPL";
+    public static final String CHAN_NOT_IMPLEMENTED = "CHAN_NOT_IMPLEMENTED";
+    public static final String FACILITY_NOT_IMPLEMENTED = "FACILITY_NOT_IMPLEMENTED";
+    public static final String SERVICE_NOT_IMPLEMENTED = "SERVICE_NOT_IMPLEMENTED";
+    public static final String INVALID_CALL_REFERENCE = "INVALID_CALL_REFERENCE";
+    public static final String INCOMPATIBLE_DESTINATION = "INCOMPATIBLE_DESTINATION";
+    public static final String INVALID_MSG_UNSPECIFIED = "INVALID_MSG_UNSPECIFIED";
+    public static final String MANDATORY_IE_MISSING = "MANDATORY_IE_MISSING";
+    public static final String MESSAGE_TYPE_NONEXIST = "MESSAGE_TYPE_NONEXIST";
+    public static final String WRONG_MESSAGE = "WRONG_MESSAGE";
+    public static final String IE_NONEXIST = "IE_NONEXIST";
+    public static final String INVALID_IE_CONTENTS = "INVALID_IE_CONTENTS";
+    public static final String WRONG_CALL_STATE = "WRONG_CALL_STATE";
+    public static final String RECOVERY_ON_TIMER_EXPIRE = "RECOVERY_ON_TIMER_EXPIRE";
+    public static final String MANDATORY_IE_LENGTH_ERROR = "MANDATORY_IE_LENGTH_ERROR";
+    public static final String PROTOCOL_ERROR = "PROTOCOL_ERROR";
+    public static final String INTERWORKING = "INTERWORKING";
+    public static final String SUCCESS = "SUCCESS";
+    public static final String ORIGINATOR_CANCEL = "ORIGINATOR_CANCEL";
+    public static final String CRASH = "CRASH";
+    public static final String SYSTEM_SHUTDOWN = "SYSTEM_SHUTDOWN";
+    public static final String LOSE_RACE = "LOSE_RACE";
+    public static final String MANAGER_REQUEST = "MANAGER_REQUEST";
+    public static final String BLIND_TRANSFER = "BLIND_TRANSFER";
+    public static final String ATTENDED_TRANSFER = "ATTENDED_TRANSFER";
+    public static final String ALLOTTED_TIMEOUT = "ALLOTTED_TIMEOUT";
+    public static final String USER_CHALLENGE = "USER_CHALLENGE";
+    public static final String MEDIA_TIMEOUT = "MEDIA_TIMEOUT";
+    public static final String PICKED_OFF = "PICKED_OFF";
+    public static final String USER_NOT_REGISTERED = "USER_NOT_REGISTERED";
+    public static final String PROGRESS_TIMEOUT = "PROGRESS_TIMEOUT";
+    public static final String INVALID_GATEWAY = "INVALID_GATEWAY";
+    public static final String GATEWAY_DOWN = "GATEWAY_DOWN";
+    public static final String INVALID_URL = "INVALID_URL";
+    public static final String INVALID_PROFILE = "INVALID_PROFILE";
+    public static final String NO_PICKUP = "NO_PICKUP";
+    public static final String SRTP_READ_ERROR = "SRTP_READ_ERROR";
+    public static final String BOWOUT = "BOWOUT";
+    public static final String BUSY_EVERYWHERE = "BUSY_EVERYWHERE";
+    public static final String DECLINE = "DECLINE";
+    public static final String DOES_NOT_EXIST_ANYWHERE = "DOES_NOT_EXIST_ANYWHERE";
+    public static final String NOT_ACCEPTABLE = "NOT_ACCEPTABLE";
+    public static final String UNWANTED = "UNWANTED";
+    public static final String NO_IDENTITY = "NO_IDENTITY";
+    public static final String BAD_IDENTITY_INFO = "BAD_IDENTITY_INFO";
+    public static final String UNSUPPORTED_CERTIFICATE = "UNSUPPORTED_CERTIFICATE";
+    public static final String INVALID_IDENTITY = "INVALID_IDENTITY";
+    public static final String STALE_DATE = "STALE_DATE";
+    public static final String REJECT_ALL = "REJECT_ALL";
+}
