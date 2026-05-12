@@ -16,3 +16,4 @@
 *.log
 logs/easycallcenter365.log
 logs/easycallcenter365-ERROR.log
+easycallcenter365.sql
