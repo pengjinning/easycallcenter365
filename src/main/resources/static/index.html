@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>easycallcenter365</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f5efe4;
+            --panel: rgba(255, 252, 246, 0.92);
+            --text: #1f2933;
+            --muted: #52606d;
+            --accent: #b45309;
+            --accent-soft: #f59e0b;
+            --border: rgba(180, 83, 9, 0.18);
+            --shadow: 0 24px 60px rgba(120, 53, 15, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Avenir Next", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(245, 158, 11, 0.22), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(180, 83, 9, 0.18), transparent 28%),
+                linear-gradient(135deg, #f8f4ea 0%, #efe3cf 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .panel {
+            width: min(760px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 28px;
+            box-shadow: var(--shadow);
+            padding: 40px 32px;
+            backdrop-filter: blur(8px);
+        }
+
+        .eyebrow {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(245, 158, 11, 0.16);
+            color: #9a3412;
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 18px 0 12px;
+            font-size: clamp(32px, 5vw, 52px);
+            line-height: 1.05;
+        }
+
+        p {
+            margin: 0;
+            line-height: 1.7;
+            color: var(--muted);
+            font-size: 16px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 28px;
+        }
+
+        .card {
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.66);
+            border: 1px solid rgba(82, 96, 109, 0.12);
+        }
+
+        .card h2 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+
+        .card p,
+        .card a {
+            font-size: 14px;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: var(--accent-soft);
+        }
+
+        .footer {
+            margin-top: 28px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(82, 96, 109, 0.14);
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, monospace;
+            font-size: 0.95em;
+            color: #7c2d12;
+        }
+    </style>
+</head>
+<body>
+<main class="panel">
+    <span class="eyebrow">Call Center Service</span>
+    <h1>easycallcenter365 已启动</h1>
+    <p>
+        当前应用已响应 <code>/call-center/</code>，这是一张最小欢迎页，用来确认服务进程和上下文路径可访问。
+        核心业务接口、电话工具条和后台配置仍按项目文档与现有 API 使用。
+    </p>
+
+    <section class="grid">
+        <article class="card">
+            <h2>健康检查</h2>
+            <p><a href="./actuator/health">./actuator/health</a></p>
+        </article>
+        <article class="card">
+            <h2>运行信息</h2>
+            <p><a href="./actuator/info">./actuator/info</a></p>
+        </article>
+        <article class="card">
+            <h2>上下文路径</h2>
+            <p><code>/call-center</code></p>
+        </article>
+    </section>
+
+    <div class="footer">
+        文档与电话工具条示例位于仓库的 docs 目录；如果你需要直接在应用内提供管理入口，下一步应补齐真正的 Web 管理页或做明确重定向。
+    </div>
+</main>
+</body>
+</html>
