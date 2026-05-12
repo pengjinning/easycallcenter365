@@ -12,3 +12,7 @@
 /sql/easycallcenter365-dev.sql
 /sql/easycallcenter365-.sql
 *.iml
+/logs/
+*.log
+logs/easycallcenter365.log
+logs/easycallcenter365-ERROR.log
