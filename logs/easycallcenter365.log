@@ -1,0 +1,225 @@
+2026-05-12 16:18:48.725 [main] [INFO] [org.springframework.boot.StartupInfoLogger:55] - Starting CallApplication on ningjinpengdeMacBook-Pro-2.local with PID 51057 (/Users/ningjinpeng/Desktop/git/github/easycallcenter365/target/classes started by ningjinpeng in /Users/ningjinpeng/Desktop/git/github/easycallcenter365) 
+2026-05-12 16:18:48.726 [main] [INFO] [org.springframework.boot.SpringApplication:655] - The following profiles are active: uat 
+2026-05-12 16:18:49.171 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:249] - Multiple Spring Data modules found, entering strict repository configuration mode! 
+2026-05-12 16:18:49.172 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:127] - Bootstrapping Spring Data JPA repositories in DEFERRED mode. 
+2026-05-12 16:18:49.196 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:187] - Finished Spring Data repository scanning in 20ms. Found 0 JPA repository interfaces. 
+2026-05-12 16:18:49.203 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:249] - Multiple Spring Data modules found, entering strict repository configuration mode! 
+2026-05-12 16:18:49.204 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:127] - Bootstrapping Spring Data Redis repositories in DEFAULT mode. 
+2026-05-12 16:18:49.218 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:187] - Finished Spring Data repository scanning in 9ms. Found 0 Redis repository interfaces. 
+2026-05-12 16:18:49.592 [main] [INFO] [org.springframework.boot.web.embedded.tomcat.TomcatWebServer:108] - Tomcat initialized with port(s): 8880 (http) 
+2026-05-12 16:18:49.597 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Initializing ProtocolHandler ["http-nio-8880"] 
+2026-05-12 16:18:49.598 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting service [Tomcat] 
+2026-05-12 16:18:49.598 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting Servlet engine: [Apache Tomcat/9.0.37] 
+2026-05-12 16:18:49.664 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Initializing Spring embedded WebApplicationContext 
+2026-05-12 16:18:49.664 [main] [INFO] [org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext:285] - Root WebApplicationContext: initialization completed in 913 ms 
+2026-05-12 16:18:49.805 [main] [INFO] [org.springframework.scheduling.concurrent.ExecutorConfigurationSupport:181] - Initializing ExecutorService 'applicationTaskExecutor' 
+2026-05-12 16:18:49.811 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:110] - HikariPool-1 - Starting... 
+2026-05-12 16:18:50.031 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:123] - HikariPool-1 - Start completed. 
+2026-05-12 16:18:50.072 [task-1] [INFO] [org.hibernate.jpa.internal.util.LogHelper:31] - HHH000204: Processing PersistenceUnitInfo [name: default] 
+2026-05-12 16:18:50.102 [task-1] [INFO] [org.hibernate.Version:44] - HHH000412: Hibernate ORM core version 5.4.20.Final 
+2026-05-12 16:18:50.192 [task-1] [INFO] [org.hibernate.annotations.common.reflection.java.JavaReflectionManager:49] - HCANN000001: Hibernate Commons Annotations {5.1.0.Final} 
+2026-05-12 16:18:50.261 [task-1] [INFO] [org.hibernate.dialect.Dialect:170] - HHH000400: Using dialect: org.hibernate.dialect.MySQL8Dialect 
+2026-05-12 16:18:50.290 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:40] - Start loading all IVR configurations... 
+2026-05-12 16:18:50.339 [main] [ERROR] [com.telerobot.fs.ivr.IvrConfigLoader:59] - Failed to load IVR configuration: StatementCallback; bad SQL grammar [SELECT * FROM cc_ivr WHERE enabled = 1 ORDER BY parent_node_id, digit]; nested exception is java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_ivr' doesn't exist 
+org.springframework.jdbc.BadSqlGrammarException: StatementCallback; bad SQL grammar [SELECT * FROM cc_ivr WHERE enabled = 1 ORDER BY parent_node_id, digit]; nested exception is java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_ivr' doesn't exist
+	at org.springframework.jdbc.support.SQLErrorCodeSQLExceptionTranslator.doTranslate(SQLErrorCodeSQLExceptionTranslator.java:235)
+	at org.springframework.jdbc.support.AbstractFallbackSQLExceptionTranslator.translate(AbstractFallbackSQLExceptionTranslator.java:72)
+	at org.springframework.jdbc.core.JdbcTemplate.translateException(JdbcTemplate.java:1443)
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:388)
+	at org.springframework.jdbc.core.JdbcTemplate.query(JdbcTemplate.java:452)
+	at org.springframework.jdbc.core.JdbcTemplate.query(JdbcTemplate.java:462)
+	at com.telerobot.fs.ivr.IvrConfigLoader.loadAllIvrConfigs(IvrConfigLoader.java:44)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.beans.factory.annotation.InitDestroyAnnotationBeanPostProcessor$LifecycleElement.invoke(InitDestroyAnnotationBeanPostProcessor.java:389)
+	at org.springframework.beans.factory.annotation.InitDestroyAnnotationBeanPostProcessor$LifecycleMetadata.invokeInitMethods(InitDestroyAnnotationBeanPostProcessor.java:333)
+	at org.springframework.beans.factory.annotation.InitDestroyAnnotationBeanPostProcessor.postProcessBeforeInitialization(InitDestroyAnnotationBeanPostProcessor.java:157)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyBeanPostProcessorsBeforeInitialization(AbstractAutowireCapableBeanFactory.java:415)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1786)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:594)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:516)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:324)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:226)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:322)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:276)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1307)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1227)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor$AutowiredFieldElement.inject(AutowiredAnnotationBeanPostProcessor.java:640)
+	at org.springframework.beans.factory.annotation.InjectionMetadata.inject(InjectionMetadata.java:130)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.postProcessProperties(AutowiredAnnotationBeanPostProcessor.java:399)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1420)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:593)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:516)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:324)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:226)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:322)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:897)
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:879)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:551)
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:143)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:758)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:750)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:397)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:315)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1237)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1226)
+	at com.telerobot.fs.CallApplication.main(CallApplication.java:29)
+Caused by: java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_ivr' doesn't exist
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:120)
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:97)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.StatementImpl.executeQuery(StatementImpl.java:1200)
+	at com.zaxxer.hikari.pool.ProxyStatement.executeQuery(ProxyStatement.java:111)
+	at com.zaxxer.hikari.pool.HikariProxyStatement.executeQuery(HikariProxyStatement.java)
+	at org.springframework.jdbc.core.JdbcTemplate$1QueryStatementCallback.doInStatement(JdbcTemplate.java:439)
+	at org.springframework.jdbc.core.JdbcTemplate.execute(JdbcTemplate.java:376)
+	... 40 common frames omitted
+2026-05-12 16:18:50.363 [main] [ERROR] [com.telerobot.fs.service.CallTaskService:43] - An error occurred when resetting all outbound call data batches, org.springframework.jdbc.BadSqlGrammarException: StatementCallback; bad SQL grammar [update cc_call_task set executing=0  WHERE  ifcall=1]; nested exception is java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_call_task' doesn't exist 
+2026-05-12 16:18:50.368 [main] [INFO] [com.telerobot.fs.wshandle.nettyserver.WebSocketServer:60] - netty init... 
+2026-05-12 16:18:50.391 [main] [WARN] [org.springframework.boot.autoconfigure.orm.jpa.JpaBaseConfiguration$JpaWebConfiguration:220] - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning 
+2026-05-12 16:18:50.408 [task-1] [INFO] [org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator:52] - HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform] 
+2026-05-12 16:18:50.412 [task-1] [INFO] [org.springframework.orm.jpa.AbstractEntityManagerFactoryBean:416] - Initialized JPA EntityManagerFactory for persistence unit 'default' 
+2026-05-12 16:18:50.533 [main] [WARN] [org.springframework.boot.autoconfigure.thymeleaf.ThymeleafAutoConfiguration$DefaultTemplateResolverConfiguration:106] - Cannot find template location: classpath:/templates/ (please add some templates or check your Thymeleaf configuration) 
+2026-05-12 16:18:50.742 [main] [INFO] [org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver:58] - Exposing 2 endpoint(s) beneath base path '/actuator' 
+2026-05-12 16:18:50.758 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting ProtocolHandler ["http-nio-8880"] 
+2026-05-12 16:18:50.770 [main] [INFO] [org.springframework.boot.web.embedded.tomcat.TomcatWebServer:220] - Tomcat started on port(s): 8880 (http) with context path '/call-center' 
+2026-05-12 16:18:50.771 [main] [INFO] [org.springframework.data.repository.config.DeferredRepositoryInitializationListener:49] - Triggering deferred initialization of Spring Data repositories… 
+2026-05-12 16:18:50.771 [main] [INFO] [org.springframework.data.repository.config.DeferredRepositoryInitializationListener:53] - Spring Data repositories initialized! 
+2026-05-12 16:18:50.778 [main] [INFO] [org.springframework.boot.StartupInfoLogger:61] - Started CallApplication in 2.307 seconds (JVM running for 2.512) 
+2026-05-12 16:18:50.838 [main] [INFO] [org.springframework.boot.autoconfigure.logging.ConditionEvaluationReportLoggingListener:136] - 
+
+Error starting ApplicationContext. To display the conditions report re-run your application with 'debug' enabled. 
+2026-05-12 16:18:50.839 [main] [ERROR] [org.springframework.boot.SpringApplication:837] - Application run failed 
+java.lang.IllegalStateException: Failed to execute CommandLineRunner
+	at org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:798)
+	at org.springframework.boot.SpringApplication.callRunners(SpringApplication.java:779)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:322)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1237)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1226)
+	at com.telerobot.fs.CallApplication.main(CallApplication.java:29)
+Caused by: org.springframework.jdbc.BadSqlGrammarException: 
+### Error querying database.  Cause: java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_params' doesn't exist
+### The error may exist in com/telerobot/fs/mybatis/persistence/SysMapper.xml
+### The error may involve defaultParameterMap
+### The error occurred while setting parameters
+### SQL: select id, param_name paramName, param_code paramCode, param_value paramValue    from cc_params   order by id desc
+### Cause: java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_params' doesn't exist
+; bad SQL grammar []; nested exception is java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_params' doesn't exist
+	at org.springframework.jdbc.support.SQLErrorCodeSQLExceptionTranslator.doTranslate(SQLErrorCodeSQLExceptionTranslator.java:235)
+	at org.springframework.jdbc.support.AbstractFallbackSQLExceptionTranslator.translate(AbstractFallbackSQLExceptionTranslator.java:72)
+	at org.mybatis.spring.MyBatisExceptionTranslator.translateExceptionIfPossible(MyBatisExceptionTranslator.java:88)
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:440)
+	at jdk.proxy2/jdk.proxy2.$Proxy82.selectList(Unknown Source)
+	at org.mybatis.spring.SqlSessionTemplate.selectList(SqlSessionTemplate.java:223)
+	at org.apache.ibatis.binding.MapperMethod.executeForMany(MapperMethod.java:147)
+	at org.apache.ibatis.binding.MapperMethod.execute(MapperMethod.java:80)
+	at org.apache.ibatis.binding.MapperProxy$PlainMethodInvoker.invoke(MapperProxy.java:152)
+	at org.apache.ibatis.binding.MapperProxy.invoke(MapperProxy.java:85)
+	at jdk.proxy2/jdk.proxy2.$Proxy90.getParamsList(Unknown Source)
+	at com.telerobot.fs.mybatis.dao.SysDaoImpl.getParamsList(SysDaoImpl.java:25)
+	at com.telerobot.fs.service.SysService.refreshParams(SysService.java:32)
+	at com.telerobot.fs.config.MyStartupRunner.run(MyStartupRunner.java:40)
+	at org.springframework.boot.SpringApplication.callRunner(SpringApplication.java:795)
+	... 5 common frames omitted
+Caused by: java.sql.SQLSyntaxErrorException: Table 'easycallcenter365.cc_params' doesn't exist
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:120)
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:97)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:953)
+	at com.mysql.cj.jdbc.ClientPreparedStatement.execute(ClientPreparedStatement.java:370)
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.execute(ProxyPreparedStatement.java:44)
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.execute(HikariProxyPreparedStatement.java)
+	at org.apache.ibatis.executor.statement.PreparedStatementHandler.query(PreparedStatementHandler.java:64)
+	at org.apache.ibatis.executor.statement.RoutingStatementHandler.query(RoutingStatementHandler.java:79)
+	at org.apache.ibatis.executor.SimpleExecutor.doQuery(SimpleExecutor.java:63)
+	at org.apache.ibatis.executor.BaseExecutor.queryFromDatabase(BaseExecutor.java:325)
+	at org.apache.ibatis.executor.BaseExecutor.query(BaseExecutor.java:156)
+	at org.apache.ibatis.executor.CachingExecutor.query(CachingExecutor.java:109)
+	at org.apache.ibatis.executor.CachingExecutor.query(CachingExecutor.java:89)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:147)
+	at org.apache.ibatis.session.defaults.DefaultSqlSession.selectList(DefaultSqlSession.java:140)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.mybatis.spring.SqlSessionTemplate$SqlSessionInterceptor.invoke(SqlSessionTemplate.java:426)
+	... 16 common frames omitted
+2026-05-12 16:18:52.071 [main] [WARN] [org.springframework.beans.factory.annotation.InitDestroyAnnotationBeanPostProcessor:185] - Destroy method on bean with name 'webSocketServer' threw an exception: java.lang.NullPointerException: Cannot invoke "io.netty.channel.EventLoopGroup.shutdownGracefully()" because "this.bossGroup" is null 
+2026-05-12 16:18:52.072 [main] [INFO] [org.springframework.orm.jpa.AbstractEntityManagerFactoryBean:598] - Closing JPA EntityManagerFactory for persistence unit 'default' 
+2026-05-12 16:18:52.073 [main] [INFO] [org.springframework.scheduling.concurrent.ExecutorConfigurationSupport:218] - Shutting down ExecutorService 'applicationTaskExecutor' 
+2026-05-12 16:18:52.074 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:350] - HikariPool-1 - Shutdown initiated... 
+2026-05-12 16:18:52.086 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:352] - HikariPool-1 - Shutdown completed. 
+2026-05-12 16:19:56.151 [main] [INFO] [org.springframework.boot.StartupInfoLogger:55] - Starting CallApplication on ningjinpengdeMacBook-Pro-2.local with PID 52162 (/Users/ningjinpeng/Desktop/git/github/easycallcenter365/target/classes started by ningjinpeng in /Users/ningjinpeng/Desktop/git/github/easycallcenter365) 
+2026-05-12 16:19:56.152 [main] [INFO] [org.springframework.boot.SpringApplication:655] - The following profiles are active: uat 
+2026-05-12 16:19:56.745 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:249] - Multiple Spring Data modules found, entering strict repository configuration mode! 
+2026-05-12 16:19:56.747 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:127] - Bootstrapping Spring Data JPA repositories in DEFERRED mode. 
+2026-05-12 16:19:56.770 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:187] - Finished Spring Data repository scanning in 20ms. Found 0 JPA repository interfaces. 
+2026-05-12 16:19:56.777 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:249] - Multiple Spring Data modules found, entering strict repository configuration mode! 
+2026-05-12 16:19:56.778 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:127] - Bootstrapping Spring Data Redis repositories in DEFAULT mode. 
+2026-05-12 16:19:56.793 [main] [INFO] [org.springframework.data.repository.config.RepositoryConfigurationDelegate:187] - Finished Spring Data repository scanning in 9ms. Found 0 Redis repository interfaces. 
+2026-05-12 16:19:57.159 [main] [INFO] [org.springframework.boot.web.embedded.tomcat.TomcatWebServer:108] - Tomcat initialized with port(s): 8880 (http) 
+2026-05-12 16:19:57.166 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Initializing ProtocolHandler ["http-nio-8880"] 
+2026-05-12 16:19:57.166 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting service [Tomcat] 
+2026-05-12 16:19:57.166 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting Servlet engine: [Apache Tomcat/9.0.37] 
+2026-05-12 16:19:57.234 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Initializing Spring embedded WebApplicationContext 
+2026-05-12 16:19:57.234 [main] [INFO] [org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext:285] - Root WebApplicationContext: initialization completed in 1058 ms 
+2026-05-12 16:19:57.388 [main] [INFO] [org.springframework.scheduling.concurrent.ExecutorConfigurationSupport:181] - Initializing ExecutorService 'applicationTaskExecutor' 
+2026-05-12 16:19:57.395 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:110] - HikariPool-1 - Starting... 
+2026-05-12 16:19:57.621 [main] [INFO] [com.zaxxer.hikari.HikariDataSource:123] - HikariPool-1 - Start completed. 
+2026-05-12 16:19:57.660 [task-1] [INFO] [org.hibernate.jpa.internal.util.LogHelper:31] - HHH000204: Processing PersistenceUnitInfo [name: default] 
+2026-05-12 16:19:57.689 [task-1] [INFO] [org.hibernate.Version:44] - HHH000412: Hibernate ORM core version 5.4.20.Final 
+2026-05-12 16:19:57.771 [task-1] [INFO] [org.hibernate.annotations.common.reflection.java.JavaReflectionManager:49] - HCANN000001: Hibernate Commons Annotations {5.1.0.Final} 
+2026-05-12 16:19:57.834 [task-1] [INFO] [org.hibernate.dialect.Dialect:170] - HHH000400: Using dialect: org.hibernate.dialect.MySQL8Dialect 
+2026-05-12 16:19:57.864 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:40] - Start loading all IVR configurations... 
+2026-05-12 16:19:57.873 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:49] - IVR configuration loading completed, loaded 5 IVR plans 
+2026-05-12 16:19:57.874 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:54] - IVR Plan: ID=251224101457010001, Name=测试2, Total Nodes=3 
+2026-05-12 16:19:57.874 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:54] - IVR Plan: ID=1, Name=测试IVR, Total Nodes=8 
+2026-05-12 16:19:57.874 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:54] - IVR Plan: ID=260127165539010001, Name=满意度评价, Total Nodes=1 
+2026-05-12 16:19:57.874 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:54] - IVR Plan: ID=260212093652010001, Name=招生咨询客服, Total Nodes=3 
+2026-05-12 16:19:57.874 [main] [INFO] [com.telerobot.fs.ivr.IvrConfigLoader:54] - IVR Plan: ID=260113162107010001, Name=转人工, Total Nodes=1 
+2026-05-12 16:19:57.898 [main] [INFO] [com.telerobot.fs.service.CallTaskService:40] - The status of all outbound call task batches was successfully reset. 
+2026-05-12 16:19:57.903 [main] [INFO] [com.telerobot.fs.wshandle.nettyserver.WebSocketServer:60] - netty init... 
+2026-05-12 16:19:57.926 [main] [WARN] [org.springframework.boot.autoconfigure.orm.jpa.JpaBaseConfiguration$JpaWebConfiguration:220] - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning 
+2026-05-12 16:19:57.953 [task-1] [INFO] [org.hibernate.engine.transaction.jta.platform.internal.JtaPlatformInitiator:52] - HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform] 
+2026-05-12 16:19:57.959 [task-1] [INFO] [org.springframework.orm.jpa.AbstractEntityManagerFactoryBean:416] - Initialized JPA EntityManagerFactory for persistence unit 'default' 
+2026-05-12 16:19:58.056 [main] [WARN] [org.springframework.boot.autoconfigure.thymeleaf.ThymeleafAutoConfiguration$DefaultTemplateResolverConfiguration:106] - Cannot find template location: classpath:/templates/ (please add some templates or check your Thymeleaf configuration) 
+2026-05-12 16:19:58.265 [main] [INFO] [org.springframework.boot.actuate.endpoint.web.EndpointLinksResolver:58] - Exposing 2 endpoint(s) beneath base path '/actuator' 
+2026-05-12 16:19:58.281 [main] [INFO] [org.apache.juli.logging.DirectJDKLog:173] - Starting ProtocolHandler ["http-nio-8880"] 
+2026-05-12 16:19:58.292 [main] [INFO] [org.springframework.boot.web.embedded.tomcat.TomcatWebServer:220] - Tomcat started on port(s): 8880 (http) with context path '/call-center' 
+2026-05-12 16:19:58.293 [main] [INFO] [org.springframework.data.repository.config.DeferredRepositoryInitializationListener:49] - Triggering deferred initialization of Spring Data repositories… 
+2026-05-12 16:19:58.293 [main] [INFO] [org.springframework.data.repository.config.DeferredRepositoryInitializationListener:53] - Spring Data repositories initialized! 
+2026-05-12 16:19:58.300 [main] [INFO] [org.springframework.boot.StartupInfoLogger:61] - Started CallApplication in 2.414 seconds (JVM running for 2.767) 
+2026-05-12 16:19:58.363 [main] [INFO] [com.telerobot.fs.config.AppContextProvider:77] - on application event... 
+2026-05-12 16:19:58.363 [processSQLQueue] [INFO] [com.telerobot.fs.acd.AcdSqlQueue:62] - start processSqlQueue thread...  
+2026-05-12 16:19:58.364 [Thread-4] [INFO] [com.telerobot.fs.global.CdrPush$1:78] - CdrPush thread is now running... 
+2026-05-12 16:19:58.364 [main] [INFO] [com.telerobot.fs.wshandle.FsEslStarter:28] - try to create freeSwitch esl connection pool. 
+2026-05-12 16:19:58.403 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:65] - inbound client will start ... 
+2026-05-12 16:19:58.404 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:280] - add event listener ... 
+2026-05-12 16:19:58.404 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:19:58.450 [nioEventLoopGroup-2-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
+2026-05-12 16:20:01.441 [main] [ERROR] [link.thingscloud.freeswitch.esl.EslConnectionPool:162] - Can not connect to FreeSWITCH instance :127.0.0.1:8021 
+2026-05-12 16:20:01.444 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:65] - inbound client will start ... 
+2026-05-12 16:20:01.444 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:280] - add event listener ... 
+2026-05-12 16:20:01.444 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:20:01.445 [nioEventLoopGroup-3-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
+2026-05-12 16:20:03.783 [scheduled-pool-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:20:03.786 [nioEventLoopGroup-2-2] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
+2026-05-12 16:20:04.448 [main] [ERROR] [link.thingscloud.freeswitch.esl.EslConnectionPool:162] - Can not connect to FreeSWITCH instance :127.0.0.1:8021 
+2026-05-12 16:20:04.449 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:65] - inbound client will start ... 
+2026-05-12 16:20:04.449 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:280] - add event listener ... 
+2026-05-12 16:20:04.449 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:20:04.450 [nioEventLoopGroup-4-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
+2026-05-12 16:20:06.516 [scheduled-pool-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:20:06.518 [nioEventLoopGroup-3-2] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
+2026-05-12 16:20:07.367 [processSQLQueue] [INFO] [com.telerobot.fs.outbound.batchcall.ScheduledScanTask:120] - AI outbound program, scanTaskFromDb thread started... 
+2026-05-12 16:20:07.378 [processSQLQueue] [INFO] [com.telerobot.fs.utils.ThreadPoolCreator:54] - Successfully create thread pool:batchMonitor 
+2026-05-12 16:20:07.398 [processSQLQueue] [INFO] [com.telerobot.fs.outbound.batchcall.ScheduledScanTask:143] - There are no new outbound tasks at present. 
+2026-05-12 16:20:07.402 [processSQLQueue] [INFO] [com.telerobot.fs.outbound.batchcall.BatchTaskManager:54] - Start the global outbound task thread pool: cpu-core-num=10, maximumPoolSize=5 
+2026-05-12 16:20:07.402 [processSQLQueue] [INFO] [com.telerobot.fs.utils.ThreadPoolCreator:54] - Successfully create thread pool:callTask 
+2026-05-12 16:20:07.402 [processSQLQueue] [INFO] [com.telerobot.fs.utils.ThreadPoolCreator:54] - Successfully create thread pool:monitorTask 
+2026-05-12 16:20:07.402 [processSQLQueue] [INFO] [com.telerobot.fs.outbound.batchcall.ScheduledScanTask:150] - Statistics, max-outbound-limitation: 1000, line used: 0. Total call task batches: 0 
+2026-05-12 16:20:07.455 [main] [ERROR] [link.thingscloud.freeswitch.esl.EslConnectionPool:162] - Can not connect to FreeSWITCH instance :127.0.0.1:8021 
+2026-05-12 16:20:07.455 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:65] - inbound client will start ... 
+2026-05-12 16:20:07.455 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:280] - add event listener ... 
+2026-05-12 16:20:07.455 [main] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:300] - connect remote server [127.0.0.1:8021] ... 
+2026-05-12 16:20:07.456 [nioEventLoopGroup-5-1] [INFO] [link.thingscloud.freeswitch.esl.inbound.AbstractInboundClient:307] - connect remote server [127.0.0.1:8021] success. 
