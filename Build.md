@@ -2,7 +2,7 @@
 
 ### 安装第三方依赖 esl-lib:  
 
-   mvn install:install-file -Dfile=thirdparty\freeswitch-esl-1.3.release.jar -DgroupId=link.thingscloud -DartifactId=freeswitch-esl  -Dversion=1.3.release  -Dpackaging=jar
+   mvn install:install-file -Dfile=thirdparty/freeswitch-esl-1.3.jar -DgroupId=link.thingscloud -DartifactId=freeswitch-esl  -Dversion=1.3  -Dpackaging=jar
    
    thirdparty\freeswitch-esl-1.3.release.jar 文件在当前项目的源代码根目录下。
    
